@@ -1,0 +1,5 @@
+*.uo
+*.ui
+*Theory.sml
+*Theory.sig
+.HOLMK
