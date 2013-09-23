@@ -320,10 +320,15 @@ val DirStreamCell_def = Define`
        names is going to be a set of bytes, since that's what's in the range of dirstream_env.
        how do we relate (names:bytes set) to (ns:value set)?
      *)
-
-    (* GIAN: We need name set, but in env we have no such values.
-       Instead, we have path set. We need the path set to include only
-       relative paths with a single component. *)
+    (* Gian: the range of dirstream_env is `name set`.
+       We want the (names: name set) value of dirstream_env to be the same
+       with that of (ns: value set). Of course, that cannot happen directly.
+       We do not have values of type name in value.
+       But, we do have values of the form (RelPath n []) where n: name.
+       These serve the same purpose; a single file name is also a degenerate relative path of a single component.
+       So, to relate them we require of (ns: value set) every element to be of that form
+       and map ns to a set of type: name set. Finally we just require the mapped set to be the same as names.
+     *)
    ∀n. n ∈ ns ⇔ ∃m. n = ProgValue (RelPath m []) ∧
    (* maybe the above is superflous because MAP throws an exception
       in case of an incomplete pattern match ? *)
@@ -348,6 +353,7 @@ val ExpCell_def = Define`
     ∃thevalue.
     (* Ramana: is state.vs supposed to only contain prog_values in its domain?
        currently it contains values in its domain *)
+    (* Gian: Yes. Changed the range to prog_vals. Hope it works *)
     eval_prog_exp state.vs prog_exp thevalue ∧
     eval_exp env exp {ProgValue thevalue} }`
 
