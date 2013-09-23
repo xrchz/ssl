@@ -47,6 +47,7 @@ val _ = type_abbrev("abspath", ``:path # address option``)
 val _ = Hol_datatype `ftype =
   File | Directory`
 
+(* Gian: We are going to need a single byte to be in the range [0..2^8] *)
 val _ = type_abbrev("bytes",``:num list``)
 
 val _ = Hol_datatype `prog_value =
@@ -260,9 +261,11 @@ val _ = Hol_datatype`instrumented_filesystem =
    ; inode_env : inode |-> bytes
    |>`
 
+(* Gian: I assume num is the type of natural numbers? *)
 val _ = Hol_datatype`process_heap =
   <| filedesc_env : ofaddr |-> (inode # num)
    ; dirstream_env : dirstream |-> name set
+   ; heap_env : num |-> int
    |>`
 
 val _ = Hol_datatype`instrumented_state =
@@ -276,7 +279,7 @@ val _ = type_abbrev("assertion",``:env -> instrumented_state set``)
 val Empty_def = Define`
   Empty (env:env)
     = { <| fs := <| root := NONE; address_env := FEMPTY; inode_env := FEMPTY |>
-         ; ph := <| filedesc_env := FEMPTY; dirstream_env := FEMPTY |>
+         ; ph := <| filedesc_env := FEMPTY; dirstream_env := FEMPTY; heap_env := FEMPTY |>
          ; vs := FEMPTY
          |> }`
 
@@ -286,6 +289,69 @@ val DirCell_def = Define`
     FLOOKUP state.fs.address_env addr = SOME (ap,ds) ∧
     eval_exp env exp {PathValue ap} ∧
     ds ∈ da env }`
+
+val RootCell_def = Define` 
+  DirCellRoot da env = { state | 
+    ∃ds. state.fs.root = SOME ds ∧
+    ds ∈ da env }`
+
+val FileCell_def = Define`
+  FileCell inode_exp bytes_exp env = { state |
+   ∃inode bytes.
+   FLOOKUP state.fs.inode_env inode = SOME bytes ∧
+   eval_exp env inode_exp {ProgValue (Inode inode)} ∧
+   eval_exp env bytes_exp {ProgValue (Byte bytes)} }`
+
+val FileDescCell_def = Define`
+  FileDescCell fd_exp inode_exp offset_exp env = { state |
+    ∃fd inode offset.
+    offset >= 0 ∧
+    (* GIAN: offset is an int, but filedesc_env: Ofaddr -> inode # num option
+       Maybe a conversion from int to num is required. *)
+    FLOOKUP state.ph.filedesc_env fd = SOME (inode, offset) ∧
+    eval_exp env fd_exp {ProgValue (Ofaddr fd)} ∧
+    eval_exp env inode_exp {ProgValue (Inode inode)} ∧
+    eval_exp env offset_exp {ProgValue (Int offset)} }`
+
+val DirStreamCell_def = Define`
+  DirStreamCell ds_exp names_exp env = { state |
+    ∃dirstr names ns.
+    FLOOKUP state.ph.dirstream_env dirstr = SOME names ∧
+    eval_exp env ds_exp {ProgValue (Dirstream dirstr)} ∧
+    eval_exp env names_exp ns ∧
+    (* GIAN: We need name set, but in env we have no such values.
+       Instead, we have path set. We need the path set to include only
+       relative paths with a single component. *)
+   ∀n. n ∈ ns ⇔ ∃m. n = ProgValue (RelPath m []) ∧
+   (* maybe the above is superflous because MAP throws an exception
+      in case of an incomplete pattern match ? *)
+   names = MAP (λ ProgValue (RelPath n []). n) ns }`
+
+val HeapCell_def = Define`
+  HeapCell addr_exp val_exp env = { state |
+    ∃addr v.
+    addr >= 0 ∧
+    (* GIAN: Again perhaps a conversion from int to num? *)
+    FLOOKUP state.ph.heap_env addr = SOME v ∧
+    eval_exp env addr_exp {ProgValue (Int addr)} ∧
+    eval_exp env val_exp {ProgValue (Int v)} }`
+
+val VarCell_def = Define`
+  VarCell var val_exp env = { state |
+    ∃v.
+    FLOOKUP state.vs var = SOME v ∧
+    eval_exp env val_exp {ProgValue v} }`
+
+val ExpCell_def = Define`
+  ExpCell prog_exp exp env = { state |
+    ∃thevalue.
+    eval_prog_exp state.vs prog_exp {ProgValue thevalue} ∧
+    eval_exp env exp {ProgValue thevalue} }`
+
+val Exp_def = Define`
+  (* If exp evaluates to true then its all the instrumented states, else its no states *)
+  Exp exp env = { state | eval_exp env exp {ProgValue (Bool TRUE)} }`
+    
 
 val root_compose_def = Define`
   (root_compose NONE     NONE     x ⇔ (x = NONE)  ) ∧
@@ -304,6 +370,7 @@ val Star_def = Define`
       dfunion      fs1.inode_env     fs2.inode_env     state.fs.inode_env     ∧
       dfunion      ph1.filedesc_env  ph2.filedesc_env  state.ph.filedesc_env  ∧
       dfunion      ph1.dirstream_env ph2.dirstream_env state.ph.dirstream_env ∧
+      dfunion      ph1.heap_env      ph2.heap_env      state.ph.heap_env ∧
       dfunion      vs1               vs2               state.vs }`
 
 (*
