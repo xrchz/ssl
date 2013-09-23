@@ -269,7 +269,7 @@ val _ = Hol_datatype`process_heap =
 val _ = Hol_datatype`instrumented_state =
   <| fs : instrumented_filesystem
    ; ph : process_heap
-   ; vs : var |-> value
+   ; vs : var |-> prog_value
    |>`
 
 val _ = type_abbrev("assertion",``:env -> instrumented_state set``)
