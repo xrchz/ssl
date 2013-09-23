@@ -47,8 +47,7 @@ val _ = type_abbrev("abspath", ``:path # address option``)
 val _ = Hol_datatype `ftype =
   File | Directory`
 
-(* Gian: We are going to need a single byte to be in the range [0..2^8] *)
-val _ = type_abbrev("bytes",``:num list``)
+val _ = type_abbrev("bytes",``:char list``)
 
 val _ = Hol_datatype `prog_value =
     Int of int
@@ -261,7 +260,6 @@ val _ = Hol_datatype`instrumented_filesystem =
    ; inode_env : inode |-> bytes
    |>`
 
-(* Gian: I assume num is the type of natural numbers? *)
 val _ = Hol_datatype`process_heap =
   <| filedesc_env : ofaddr |-> (inode # num)
    ; dirstream_env : dirstream |-> name set
@@ -290,8 +288,8 @@ val DirCell_def = Define`
     eval_exp env exp {PathValue ap} ∧
     ds ∈ da env }`
 
-val RootCell_def = Define` 
-  DirCellRoot da env = { state | 
+val RootCell_def = Define`
+  RootCell da env = { state |
     ∃ds. state.fs.root = SOME ds ∧
     ds ∈ da env }`
 
@@ -305,10 +303,8 @@ val FileCell_def = Define`
 val FileDescCell_def = Define`
   FileDescCell fd_exp inode_exp offset_exp env = { state |
     ∃fd inode offset.
-    offset >= 0 ∧
-    (* GIAN: offset is an int, but filedesc_env: Ofaddr -> inode # num option
-       Maybe a conversion from int to num is required. *)
-    FLOOKUP state.ph.filedesc_env fd = SOME (inode, offset) ∧
+    0 ≤ offset ∧
+    FLOOKUP state.ph.filedesc_env fd = SOME (inode, Num offset) ∧
     eval_exp env fd_exp {ProgValue (Ofaddr fd)} ∧
     eval_exp env inode_exp {ProgValue (Inode inode)} ∧
     eval_exp env offset_exp {ProgValue (Int offset)} }`
@@ -319,6 +315,12 @@ val DirStreamCell_def = Define`
     FLOOKUP state.ph.dirstream_env dirstr = SOME names ∧
     eval_exp env ds_exp {ProgValue (Dirstream dirstr)} ∧
     eval_exp env names_exp ns ∧
+
+    (* Ramana: I don't quite understand what's supposed to happen here.
+       names is going to be a set of bytes, since that's what's in the range of dirstream_env.
+       how do we relate (names:bytes set) to (ns:value set)?
+     *)
+
     (* GIAN: We need name set, but in env we have no such values.
        Instead, we have path set. We need the path set to include only
        relative paths with a single component. *)
@@ -330,9 +332,8 @@ val DirStreamCell_def = Define`
 val HeapCell_def = Define`
   HeapCell addr_exp val_exp env = { state |
     ∃addr v.
-    addr >= 0 ∧
-    (* GIAN: Again perhaps a conversion from int to num? *)
-    FLOOKUP state.ph.heap_env addr = SOME v ∧
+    0 ≤ addr ∧
+    FLOOKUP state.ph.heap_env (Num addr) = SOME v ∧
     eval_exp env addr_exp {ProgValue (Int addr)} ∧
     eval_exp env val_exp {ProgValue (Int v)} }`
 
@@ -340,18 +341,20 @@ val VarCell_def = Define`
   VarCell var val_exp env = { state |
     ∃v.
     FLOOKUP state.vs var = SOME v ∧
-    eval_exp env val_exp {ProgValue v} }`
+    eval_exp env val_exp {v} }`
 
 val ExpCell_def = Define`
   ExpCell prog_exp exp env = { state |
     ∃thevalue.
-    eval_prog_exp state.vs prog_exp {ProgValue thevalue} ∧
+    (* Ramana: is state.vs supposed to only contain prog_values in its domain?
+       currently it contains values in its domain *)
+    eval_prog_exp state.vs prog_exp thevalue ∧
     eval_exp env exp {ProgValue thevalue} }`
 
 val Exp_def = Define`
-  (* If exp evaluates to true then its all the instrumented states, else its no states *)
+  (* If exp evaluates to true then it's all the instrumented states, else it's no states *)
+  (* (Ramana: yes, that correctly describes what's below) *)
   Exp exp env = { state | eval_exp env exp {ProgValue (Bool TRUE)} }`
-    
 
 val root_compose_def = Define`
   (root_compose NONE     NONE     x ⇔ (x = NONE)  ) ∧
