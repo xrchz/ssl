@@ -325,6 +325,9 @@ val Empty_def = Define`
 val DirCell_def = Define`
   DirCell addrvar path_exp da env = { state |
     ∃ap ds addr.
+    (* Ramana: This doesn't make sense.
+               env : var |-> value,
+               but we need addr to be an address, not a value *)
     FLOOKUP env addrvar = SOME addr ∧
     FLOOKUP state.fs.address_env addr = SOME (ap,ds) ∧
     eval_exp env exp {PathValue ap} ∧
