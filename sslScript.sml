@@ -45,7 +45,7 @@ val path_dir_def = Define`
 val _ = type_abbrev("abspath", ``:path # address option``)
 
 val _ = Hol_datatype `ftype =
-  File | Directory`
+  TFile | TDirectory`
 
 val _ = type_abbrev("bytes",``:char list``)
 
