@@ -429,13 +429,12 @@ val Implication_def = Define`
 
 val Exists_def = Define`
   Exists var a env = { state |
-    ∀v. v ∈ value ∧
-    state ∈ a (FUPDATE env (var, v)) }`
+    ∃v. state ∈ a (FUPDATE env (var, v)) }`
 
 (* Derived directory assertions *)
 val ForAll_def = Define`
   ForAll var a =
-    Neg (Exists var (Neg da))`
+    Neg (Exists var (Neg a))`
 
 val True_def = Define`
   True = Neg False`
