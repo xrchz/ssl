@@ -175,9 +175,11 @@ val _ = Hol_datatype `
   exp =
     ProgExp of prog_exp
   | Var of var
+  | AddrVar of var
   | Union of exp => exp
   | Inter of exp => exp
-  | Diff of exp => exp`
+  | Diff of exp => exp
+  | IsElement of exp => exp`
 
 val values_same_type_def = Define`
   values_same_type s ⇔
@@ -197,6 +199,10 @@ val (eval_exp_rules,eval_exp_ind,eval_exp_cases) = Hol_reln`
   (FLOOKUP env x = SOME v
    ⇒
    eval_exp env (Var x) {v}) ∧
+
+  (FLOOKUP env x = SOME v
+   ⇒
+   eval_exp env (AddrVar x) {v}) ∧
 
   (eval_exp env e1 vs1 ∧
    eval_exp env e2 vs2
@@ -246,6 +252,41 @@ val DPathResolution_def = Define`
     eval_exp env exp {PathValue (RelPath p ps,a)} ∧
     EXISTS IS_SOME (MAP (resolve (p::ps) a) ds) }`
 
+
+(* First order connectives and qunatifiers for directory assertions *)
+val DConjunction_def = Define`
+  DConjunction (da1: dir_assertion) (da2: dir_assertion) env = { ds |
+    ds ∈ da1 env ∧
+    ds ∈ da2 env }`
+
+val DDisjunction_def = Define`
+  DDisjunction (da1: dir_assertion) (da2: dir_assertion) env = { ds |
+    ds ∈ da1 env ∨
+    ds ∈ da2 env }`
+
+val DFalse_def = Define`
+  DFalse env = { }` (* empty set *)
+
+val DNeg_def = Define`
+  DNeg (da: dir_assertion) env = { ds | ds ∉ da env }`
+
+val DImplication_def = Define`
+  DImplication (da1: dir_assertion) (da2: dir_assertion) env =
+    { ds | ds ∉ da1 env } ∪ (da2 env)`
+
+val DExists_def = Define`
+  DExists var (da: dir_assertion) env = { ds |
+    ∀v. v ∈ value ∧
+    ds ∈ da (FUPDATE env (var, v)) }`
+
+(* Derived directory assertions *)
+val DForAll_def = Define`
+  DForAll var (da: dir_assertion) =
+    DNeg (DExists var (DNeg da))`
+
+val DTrue_def = Define`
+  DTrue = DNeg DFalse`
+
 (*
 
 type_of
@@ -282,8 +323,9 @@ val Empty_def = Define`
          |> }`
 
 val DirCell_def = Define`
-  DirCell addr exp da env = { state |
-    ∃ap ds.
+  DirCell addrvar path_exp da env = { state |
+    ∃ap ds addr.
+    FLOOKUP env addrvar = SOME addr ∧
     FLOOKUP state.fs.address_env addr = SOME (ap,ds) ∧
     eval_exp env exp {PathValue ap} ∧
     ds ∈ da env }`
@@ -382,8 +424,302 @@ val Star_def = Define`
       dfunion      ph1.heap_env      ph2.heap_env      state.ph.heap_env ∧
       dfunion      vs1               vs2               state.vs }`
 
+(* Top level first order connectives and quantifiers *)
+val Conjunction_def = Define`
+  Conjunction a1 a2 env = { state |
+    state ∈ a1 env ∧ state ∈ a2 env }`
+
+val Disjunction_def = Define`
+  Disjunction a1 a2 env = { state |
+    state ∈ a1 env ∨ state ∈ a2 env }`
+
+val False_def = Define`
+  False env = { }` (* empty set *)
+
+val Neg_def = Define`
+  Neg a env = { state | state ∉ a env }`
+
+val Implication_def = Define`
+  Implication a1 a2 env =
+    { state | state ∉ a1 env } ∪ (a2 env)`
+
+val Exists_def = Define`
+  Exists var a env = { state |
+    ∀v. v ∈ value ∧
+    state ∈ a (FUPDATE env (var, v)) }`
+
+(* Derived directory assertions *)
+val ForAll_def = Define`
+  ForAll var a =
+    Neg (Exists var (Neg da))`
+
+val True_def = Define`
+  True = Neg False`
+
+(* Derived assertions; predicates *)
+
+(* GIAN: OK. To avoid a name clash between the two vars I take advantage of the 
+   fact that variables are values of type :num. Thus, the existentially quantified
+   variable is always a different variable from the argument variable. *)
+val SomeValVarCell_def = Define`
+    SomeVarCell var = Exists (var + 1) (VarCell (ProgVar var) (ProgVar (var + 1)))`
+
+(* GIAN: We need a dir_assertion True *)
+val Somewhere_def = Define`
+  Somewhere (da: dir_assertion) = 
+    DExists 0 (DContextApplication DTrue (AddrVar 0) da)`
+
+val SomewhereTop_def = Define`
+    SomewhereTop (da: dir_assertion) = DConcat DTrue da`
+
+val CompleteTree_def = Define`
+  CompleteTree = DNeg (DExists 0 (Somewhere (AddrVar 0)))
+
+val Entry_def = Define`
+  Entry name_exp = DDisjunction (DDirectory name_exp DTrue)
+			        (DExists 0 (DFileLink name_exp (ProgVar 0)))`
+
+val TopAddress_def = Define`
+  TopAddress = DExists 0 (SomewhereTop (AddrVar 0))`
+
+val TopContents_def = Define`
+  TopContents (da: dir_assertion) = DConjunction da (DNeg TopAddress)
+
+val NameNotHere_def = Define`
+    NameNotHere name_exp = DConjunction (DNeg (SomewhereTop (Entry name_exp)))
+				        (DNeg TopAddress)
+
+(* Commands *)
+val _ = Hol_datatype `command =
+    (* First var is the one storing the return value after execution *)
+    Mkdir of var => var
+  | Rename of var => var => var
+
+(* Hoare triples *)
+(* Gian: hope this is the right syntax *)
+val _ = type_abbrev("hoare_triple", ``:assertion # command # assertion``)
+
+(* AXIOMS *)
+(* GIAN: the type: var is defined as :num, so I use naturals as vars *)
+
+(* mkdir *)
+val mkdir =
+    (Star (SomeVarCell 0)
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
+		(DirCell 5 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
+							     (DConjunction (DExp (Var 6)) 
+						           		   (NameNotThere 
+										(ProgExp (ProgVar 4)))))))),
+    (Mkdir 0 1),
+    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
+		(DirCell 5 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
+							     (DConcat (DExp (Var 6))
+								      (DDirectory (ProgExp (ProgVar 4)) 
+										  Empty))))))
+
+(* mkdir, directly under root case *)
+val mkdir_root =
+    (Star (SomeVarCell 0)
+	  (Star (VarCell 1 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 2))))
+		(RootCell (Conjunction (DExp (Var 3)) (NameNotThere (ProgExp (ProgVar 2))))))),
+    (Mkdir 0 1),
+    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
+	  (Star (VarCell 1 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 2))))
+		(RootCell (DConcat (DExp (Var 3)) (DDirectory (ProgExp (ProgVar 2)) Empty)))))
+
+(* rename, dir, move, target not exists *)
+val rename_dir_move_not_exist =
+    (Star (SomeVarCell 0)
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (Concat (ProgVar 6) (ProgVar 7)))))
+		      (Star (DirCell 8 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
+									 (DConjunction (DExp (Var 9))
+										       CompleteTree)))
+			    (DirCell 10 (ProgExp (ProgVar 5)) (DDirectory (ProgExp (ProgVar 6))
+									  (DConjunction (DExp (Var 11))
+											(NameNotThere (ProgExp (ProgVar 7)))))))))),
+    (Rename 0 1 4),
+    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (Concat (ProgVar 6) (ProgVar 7)))))
+		      (Star (DirCell 8 (ProgExp (ProgVar 2)) DEmpty)
+			    (DirCell 10 (ProgExp (ProgVar 5)) (DDirectory (ProgExp (ProgVar 6))
+									  (DConcat (DExp (Var 11))
+										   (DDirectory (ProgExp (ProgVar 3))
+											       (DExp (Var 9))))))))))
+
+(* rename, dir, move, targe not exists, under root *)
+val rename_dir_move_not_exist_root =
+    (Star (SomeVarCell 0)
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		(Star (VarCell 4 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 5))))
+		      (Star (DirCell 6 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
+									 (DConjunction (DExp (Var 7))
+										       CompleteTree)))
+			    (RootCell (DConjunction (DExp (Var 8)) (NameNotThere (ProgExp (ProgVar 5))))))))),
+    (Rename 0 1 4),
+    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		(Star (VarCell 4 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 5))))
+		      (Star (DirCell 6 (ProgExp (ProgVar 2)) DEmpty)
+			    (RootCell (DConcat (DExp (Var 8)) (DDirectory (ProgExp (ProgVar 3))
+									  (DExp (Var 7)))))))))
+
+(* rename, dir, target not exists *)
+val rename_dir_not_exist =
+    (Star (SomeVarCell 0)
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
+		(Star (VarCell 5 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 6)))))
+		      (DirCell 7 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
+								   (DConcat (DDirectory (ProgExp (ProgVar 4))
+											(DConjunction (DExp (Var 8))
+												      CompleteTree))
+									    (DConjunction (DExp (Var 9))
+											  (NameNotThere (ProgExp (ProgVar 6)))))))))),
+    (Rename 0 1 5),
+    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
+		(Star (VarCell 5 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 6)))))
+		      (DirCell 7 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
+								   (DConcat (DExp (Var 9))
+									    (DDirectory (ProgExp (ProgVar 6))
+											(DExp (Var 8)))))))))
+
+(* rename, dir, target not exist, root *)
+val rename_dir_not_exist_root =
+    (Star (SomeVarCell 0)
+	  (Star (VarCell 1 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 2))))
+		(Star (VarCell 3 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 4))))
+		      (RootCell (DConcat (DDirectory (ProgExp (ProgVar 2)) (DConjunction (DExp (Var 5)) CompleteTree))
+					 (DConjunction (DExp (Var 6)) (NameNotThere (ProgExp (ProgVar 4))))))))),
+    (Rename 0 1 3),
+    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
+	  (Star (VarCell 1 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 2))))
+		(Star (VarCell 3 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 4))))
+		      (RootCell (DConcat (DExp (Var 6)) (DDirectory (ProgExp (ProgVar 4)) (DExp (Var 5))))))))
+
+(* rename: dir, target exists *)
+val rename_move_dir_exist =
+    (Star (SomeVarCell 0)
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (ProgVar 6))))
+		      (Star (DirCell 7 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
+									 (DConjunction (DExp (Var 8))
+										       CompleteTree)))
+			    (DirCell 9 (ProgExp (ProgVar 5)) (DDirectory (ProgExp (ProgVar 6))
+									 DEmpty)))))),
+    (Rename 0 1 4),
+    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (ProgVar 6))))
+		      (Star (DirCell 7 (ProgExp (ProgVar 2)) DEmpty)
+			    (DirCell 9 (ProgExp (ProgVar 5)) (DDirectory (ProgExp (ProgVar 3))
+									 (DExp (Var 8))))))))
+
+(* rename: move, file, target not exist *)
+val rename_move_file_not_exist =
+    (Star (SomeVarCell 0)
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (Concat (ProgVar 6) (ProgVar 7)))))
+		      (Star (DirCell 8 (ProgExp (ProgVar 2)) (DFileLink (ProgExp (ProgVar 3)) (ProgExp (ProgVar 9))))
+			    (DirCell 10 (ProgExp (ProgVar 5)) (DDirectory (ProgExp (ProgVar 6))
+									  (DConjunction (DExp (Var 11))
+											(NameNotThere (ProgExp (ProgVar 7)))))))))),
+    (Rename 0 1 4),
+    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (Concat (ProgVar 6) (ProgVar 7)))))
+		      (Star (DirCell 8 (ProgExp (ProgVar 2)) DEmpty)
+			    (DirCell 10 (ProgExp (ProgVar 5)) (DDirectory (ProgExp (ProgVar 6))
+									  (DConcat (DExp (Var 11))
+										   (DFileLink (ProgExp (ProgVar 7)) (ProgExp (ProgVar 9))))))))))
+
+(* rename: move, file, target not exists under root *)
+val rename_move_file_not_exist_root =
+    (Star (SomeVarCell 0)
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		(Star (VarCell 4 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 5))))
+		      (Star (DirCell 6 (ProgExp (ProgVar 2)) (DFileLink (ProgExp (ProgVar 3)) (ProgExp (ProgVar 7))))
+			    (RootCell (DConjunction (DExp (Var 8)) (NameNotThere (ProgExp (ProgVar 5))))))))),
+    (Rename 0 1 4),
+    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		(Star (VarCell 4 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 5))))
+		      (Star (DirCell 6 (ProgExp (ProgVar 2)) DEmpty)
+			    (RootCell (DConcat (DExp (Var 8)) (DFileLink (ProgExp (ProgVar 5)) (ProgExp (ProgVar 7)))))))))
+
+(* rename: file, target not exist *)
+val rename_file_not_exist =
+    (Star (SomeVarCell 0)
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
+		(Star (VarCell 5 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 6)))))
+		      (DirCell 7 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
+								   (DConcat (DFileLink (ProgExp (ProgVar 4)) (ProgExp (ProgVar 8)))
+									    (DConjunction (DExp (Var 9)) (NameNotThere (ProgExp (ProgVar 6)))))))))),
+    (Rename 0 1 5),
+    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
+		(Star (VarCell 5 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 6)))))
+		      (DirCell 7 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
+								   (DConcat (DExp (Var 9)) (DFileLink (ProgExp (ProgVar 6)) (ProgExp (ProgVar 8)))))))))
+
+(* rename: file, target not exist under root *)
+val rename_file_not_exist_root =
+    (Star (SomeVarCell 0)
+	  (Star (VarCell 1 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 2))))
+		(Star (VarCell 3 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 4))))
+		      (RootCell (DConcat (DFileLink (ProgExp (ProgVar 2)) (ProgExp (ProgVar 5)))
+					 (DConjunction (DExp (Var 6)) (NameNotThere (ProgExp (ProgVar 4))))))))),
+    (Rename 0 1 3),
+    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
+	  (Star (VarCell 1 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 2))))
+		(Star (VarCell 3 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 4))))
+		      (RootCell (DConcat (DExp (Var 6)) (DFileLink (ProgExp (ProgVar 4)) (ProgExp (ProgVar 5))))))))
+
+(* rename: file, target exists *)
+val rename_file_exist =
+    (Star (SomeVarCell 0)
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (ProgVar 6))))
+		      (Star (DirCell 7 (ProgExp (ProgVar 2)) (DFileLink (ProgExp (ProgVar 3)) (ProgExp (ProgVar 8))))
+			    (DirCell 9 (ProgExp (ProgVar 5)) (Conjunction (DFileLink (ProgExp (ProgVar 6)) (ProgExp (ProgVar 10)))
+									  (Neg (Exp (Equal (ProgExp (ProgVar 8)) (ProgExp (ProgVar 10))))))))))),
+    (Rename 0 1 4),
+    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (ProgVar 6))))
+		      (Star (DirCell 7 (ProgExp (ProgVar 2)) DEmpty)
+			    (DirCell 9 (ProgExp (ProgVar 5)) (DFileLink (ProgExp (ProgVar 6)) (ProgExp (ProgVar 8))))))))
+
+(* rename: file, target exist, same inode *)
+val rename_file_exist_same =
+    (Star (SomeVarCell 0)
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (ProgVar 6))))
+		      (Star (DirCell 7 (ProgExp (ProgVar 2)) (DFileLink (ProgExp (ProgVar 3)) (ProgExp (ProgVar 8))))
+			    (DirCell 9 (ProgExp (ProgVar 5)) (Conjunction (DFileLink (ProgExp (ProgVar 6)) (ProgExp (ProgVar 8))))))))),
+    (Rename 0 1 4),
+    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (ProgVar 6))))
+		      (Star (DirCell 7 (ProgExp (ProgVar 2)) (DFileLink (ProgExp (ProgVar 3)) (ProgExp (ProgVar 8))))
+			    (DirCell 9 (ProgExp (ProgVar 5)) (Conjunction (DFileLink (ProgExp (ProgVar 6)) (ProgExp (ProgVar 8)))))))))
+
+(* rename: same paths *)
+val rename_same =
+    (Star (SomeVarCell 0)
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		(Star (VarCell 4 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		      (DirCell 5 (ProgExp (ProgVar 2)) (DConjuntion (DExp (Var 6)) (Entry (ProgExp (ProgVar 3)))))))),
+    (Rename 0 1 4),
+    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
+	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		(Star (VarCell 4 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
+		      (DirCell 5 (ProgExp (ProgVar 2)) (DExp (Var 6))))))
+
 (*
-val _ = Hol_datatype`
+Val _ = Hol_datatype`
   assertion =
     Empty
   | DirCell of address => exp => dir_assertion
