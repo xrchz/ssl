@@ -252,40 +252,21 @@ val DPathResolution_def = Define`
     eval_exp env exp {PathValue (RelPath p ps,a)} ∧
     EXISTS IS_SOME (MAP (resolve (p::ps) a) ds) }`
 
-
-(* First order connectives and qunatifiers for directory assertions *)
-val DConjunction_def = Define`
-  DConjunction (da1: dir_assertion) (da2: dir_assertion) env = { ds |
-    ds ∈ da1 env ∧
-    ds ∈ da2 env }`
-
-val DDisjunction_def = Define`
-  DDisjunction (da1: dir_assertion) (da2: dir_assertion) env = { ds |
-    ds ∈ da1 env ∨
-    ds ∈ da2 env }`
-
-val DFalse_def = Define`
-  DFalse env = { }` (* empty set *)
-
-val DNeg_def = Define`
-  DNeg (da: dir_assertion) env = { ds | ds ∉ da env }`
-
-val DImplication_def = Define`
-  DImplication (da1: dir_assertion) (da2: dir_assertion) env =
-    { ds | ds ∉ da1 env } ∪ (da2 env)`
+val DLift_def = Define`
+  DLift f (da1:dir_assertion) da2 env = { ds | f (ds ∈ da1 env) (ds ∈ da2 env) }`
+val _ = Parse.overload_on("/\\",``DLift $/\``)
+val _ = Parse.overload_on("\\/",``DLift $\/``)
+val _ = Parse.overload_on("F",``(K {}):dir_assertion``)
+val _ = Parse.overload_on("T",``(K UNIV):dir_assertion``)
+val _ = Parse.overload_on("==>",``DLift $==>``)
+val _ = Parse.overload_on("<=>",``DLift $<=>``)
+val _ = Parse.overload_on("~",``λda:dir_assertion. da ⇒ F``)
 
 val DExists_def = Define`
-  DExists var (da: dir_assertion) env = { ds |
-    ∀v. v ∈ value ∧
-    ds ∈ da (FUPDATE env (var, v)) }`
-
-(* Derived directory assertions *)
-val DForAll_def = Define`
-  DForAll var (da: dir_assertion) =
-    DNeg (DExists var (DNeg da))`
-
-val DTrue_def = Define`
-  DTrue = DNeg DFalse`
+  DExists (P : var -> dir_assertion) env = { ds |
+    ∃var val. ds ∈ (P var) (env|+(var,val)) }`
+val _ = Parse.overload_on("?",``DExists``)
+val _ = Parse.overload_on("!",``λP:var -> dir_assertion. ¬∃v. ¬(P v)``)
 
 (*
 
@@ -408,78 +389,57 @@ val Star_def = Define`
       dfunion      ph1.heap_env      ph2.heap_env      state.ph.heap_env ∧
       dfunion      vs1               vs2               state.vs }`
 
-(* Top level first order connectives and quantifiers *)
-val Conjunction_def = Define`
-  Conjunction a1 a2 env = { state |
-    state ∈ a1 env ∧ state ∈ a2 env }`
-
-val Disjunction_def = Define`
-  Disjunction a1 a2 env = { state |
-    state ∈ a1 env ∨ state ∈ a2 env }`
-
-val False_def = Define`
-  False env = { }` (* empty set *)
-
-val Neg_def = Define`
-  Neg a env = { state | state ∉ a env }`
-
-val Implication_def = Define`
-  Implication a1 a2 env =
-    { state | state ∉ a1 env } ∪ (a2 env)`
+val Lift_def = Define`
+  Lift f (a1:assertion) a2 env = { state | f (state ∈ a1 env) (state ∈ a2 env) }`
+val _ = Parse.overload_on("/\\",``Lift $/\``)
+val _ = Parse.overload_on("\\/",``Lift $\/``)
+val _ = Parse.overload_on("F",``(K {}):assertion``)
+val _ = Parse.overload_on("T",``(K UNIV):assertion``)
+val _ = Parse.overload_on("==>",``Lift $==>``)
+val _ = Parse.overload_on("<=>",``Lift $<=>``)
+val _ = Parse.overload_on("~",``λa:assertion. a ⇒ F``)
 
 val Exists_def = Define`
-  Exists var a env = { state |
-    ∃v. state ∈ a (FUPDATE env (var, v)) }`
+  Exists (P : var -> assertion) env = { state |
+    ∃var val. state ∈ (P var) (env|+(var,val)) }`
+val _ = Parse.overload_on("?",``Exists``)
+val _ = Parse.overload_on("!",``λP:var -> assertion. ¬∃v. ¬(P v)``)
 
-(* Derived directory assertions *)
-val ForAll_def = Define`
-  ForAll var a =
-    Neg (Exists var (Neg a))`
+val SomeVarCell_def = Define`
+    SomeVarCell var = ∃v. (VarCell var (ProgExp (ProgVar v)))`
 
-val True_def = Define`
-  True = Neg False`
-
-(* Derived assertions; predicates *)
-
-(* GIAN: OK. To avoid a name clash between the two vars I take advantage of the 
-   fact that variables are values of type :num. Thus, the existentially quantified
-   variable is always a different variable from the argument variable. *)
-val SomeValVarCell_def = Define`
-    SomeVarCell var = Exists (var + 1) (VarCell (ProgVar var) (ProgVar (var + 1)))`
-
-(* GIAN: We need a dir_assertion True *)
 val Somewhere_def = Define`
-  Somewhere (da: dir_assertion) = 
-    DExists 0 (DContextApplication DTrue (AddrVar 0) da)`
+  Somewhere (da: dir_assertion) =
+    ∃x. DContextApplication T x da`
 
 val SomewhereTop_def = Define`
-    SomewhereTop (da: dir_assertion) = DConcat DTrue da`
+    SomewhereTop (da: dir_assertion) = DConcat T da`
 
 val CompleteTree_def = Define`
-  CompleteTree = DNeg (DExists 0 (Somewhere (AddrVar 0)))
+  CompleteTree = ¬(∃x. (Somewhere (DExp (AddrVar x))))`
 
 val Entry_def = Define`
-  Entry name_exp = DDisjunction (DDirectory name_exp DTrue)
-			        (DExists 0 (DFileLink name_exp (ProgVar 0)))`
+  Entry name_exp =
+    ((DDirectory name_exp T) ∨
+		 (∃x. DFileLink name_exp (ProgExp (ProgVar x))))`
 
 val TopAddress_def = Define`
-  TopAddress = DExists 0 (SomewhereTop (AddrVar 0))`
+  TopAddress = ∃x. (SomewhereTop (DExp (AddrVar x)))`
 
 val TopContents_def = Define`
-  TopContents (da: dir_assertion) = DConjunction da (DNeg TopAddress)
+  TopContents (da: dir_assertion) = (da ∧ ¬TopAddress)`
 
 val NameNotHere_def = Define`
-    NameNotHere name_exp = DConjunction (DNeg (SomewhereTop (Entry name_exp)))
-				        (DNeg TopAddress)
+    NameNotHere name_exp =
+      (¬ SomewhereTop (Entry name_exp) ∧ ¬ TopAddress)`
 
 (* Commands *)
 val _ = Hol_datatype `command =
     (* First var is the one storing the return value after execution *)
     Mkdir of var => var
-  | Rename of var => var => var
+  | Rename of var => var => var`
 
 (* Hoare triples *)
-(* Gian: hope this is the right syntax *)
 val _ = type_abbrev("hoare_triple", ``:assertion # command # assertion``)
 
 (* AXIOMS *)
