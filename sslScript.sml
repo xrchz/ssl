@@ -353,28 +353,11 @@ val FileDescCell_def = Define`
 
 val DirStreamCell_def = Define`
   DirStreamCell ds_exp names_exp env = { state |
-    ∃dirstr names ns.
-    FLOOKUP state.ph.dirstream_env dirstr = SOME names ∧
+    ∃dirstr ns.
+    FLOOKUP state.ph.dirstream_env dirstr = SOME { n | ProgValue(Path(Name n)) ∈ ns } ∧
     eval_exp env ds_exp {ProgValue (Dirstream dirstr)} ∧
     eval_exp env names_exp ns ∧
-
-    (* Ramana: I don't quite understand what's supposed to happen here.
-       names is going to be a set of bytes, since that's what's in the range of dirstream_env.
-       how do we relate (names:bytes set) to (ns:value set)?
-     *)
-    (* Gian: the range of dirstream_env is `name set`.
-       We want the (names: name set) value of dirstream_env to be the same
-       with that of (ns: value set). Of course, that cannot happen directly.
-       We do not have values of type name in value.
-       But, we do have values of the form (RelPath n []) where n: name.
-       These serve the same purpose; a single file name is also a degenerate relative path of a single component.
-       So, to relate them we require of (ns: value set) every element to be of that form
-       and map ns to a set of type: name set. Finally we just require the mapped set to be the same as names.
-     *)
-   ∀n. n ∈ ns ⇔ ∃m. n = ProgValue (RelPath m []) ∧
-   (* maybe the above is superflous because MAP throws an exception
-      in case of an incomplete pattern match ? *)
-   names = MAP (λ ProgValue (RelPath n []). n) ns }`
+    (∀v. v ∈ ns ⇒ ∃n. v = ProgValue(Path(Name n))) }`
 
 val HeapCell_def = Define`
   HeapCell addr_exp val_exp env = { state |
@@ -388,7 +371,7 @@ val VarCell_def = Define`
   VarCell var val_exp env = { state |
     ∃v.
     FLOOKUP state.vs var = SOME v ∧
-    eval_exp env val_exp {v} }`
+    eval_exp env val_exp {ProgValue v} }`
 
 val ExpCell_def = Define`
   ExpCell prog_exp exp env = { state |
@@ -400,9 +383,7 @@ val ExpCell_def = Define`
     eval_exp env exp {ProgValue thevalue} }`
 
 val Exp_def = Define`
-  (* If exp evaluates to true then it's all the instrumented states, else it's no states *)
-  (* (Ramana: yes, that correctly describes what's below) *)
-  Exp exp env = { state | eval_exp env exp {ProgValue (Bool TRUE)} }`
+  Exp exp env = { state | state | eval_exp env exp {ProgValue (Bool T)} }`
 
 val root_compose_def = Define`
   (root_compose NONE     NONE     x ⇔ (x = NONE)  ) ∧
