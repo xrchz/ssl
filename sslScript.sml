@@ -499,7 +499,7 @@ val mkdir =
 								      (DDirectory (ProgExp (ProgVar 4)) 
 										  Empty))))))
 
-(* mkdir, directly under root case *)
+(* mkdir, in root *)
 val mkdir_root =
     (Star (SomeVarCell 0)
 	  (Star (VarCell 1 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 2))))
