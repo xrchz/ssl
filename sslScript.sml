@@ -174,8 +174,8 @@ val _ = Hol_datatype `value =
 val _ = Hol_datatype `
   exp =
     ProgExp of prog_exp
-  | Var of var
-  | AddrVar of var
+  | Var of value
+  | AddrVar of address
   | Union of exp => exp
   | Inter of exp => exp
   | Diff of exp => exp
@@ -188,21 +188,14 @@ val values_same_type_def = Define`
     (∀x. x ∈ s ⇒ ∃v. x = PathValue v) ∨
     (∀x. x ∈ s ⇒ ∃v. x = AddressValue v)`
 
-val dest_ProgValue_def = Define`
-  dest_ProgValue (ProgValue v) = v`
-
 val (eval_exp_rules,eval_exp_ind,eval_exp_cases) = Hol_reln`
-  (eval_prog_exp (dest_ProgValue o_f (DRESTRICT env {x | FLOOKUP env x = SOME (ProgValue pv)})) pe pv
+  (eval_prog_exp env pe pv
    ⇒
    eval_exp env (ProgExp pe) {ProgValue pv}) ∧
 
-  (FLOOKUP env x = SOME v
-   ⇒
-   eval_exp env (Var x) {v}) ∧
+  (eval_exp env (Var v) {v}) ∧
 
-  (FLOOKUP env x = SOME v
-   ⇒
-   eval_exp env (AddrVar x) {v}) ∧
+  (eval_exp env (AddrVar a) {AddressValue a}) ∧
 
   (eval_exp env e1 vs1 ∧
    eval_exp env e2 vs2
@@ -219,9 +212,9 @@ val (eval_exp_rules,eval_exp_ind,eval_exp_cases) = Hol_reln`
    ⇒
    eval_exp env (Diff e1 e2) (vs1 DIFF vs2))`
 
-val _ = type_abbrev("env",``:var |-> value``)
+val _ = type_abbrev("prog_env",``:var |-> prog_value``)
 
-val _ = type_abbrev("dir_assertion",``:env -> forest set``)
+val _ = type_abbrev("dir_assertion",``:prog_env -> forest set``)
 
 val DEmpty_def = Define`DEmpty env = { [] }`
 
@@ -263,10 +256,9 @@ val _ = Parse.overload_on("<=>",``DLift $<=>``)
 val _ = Parse.overload_on("~",``λda:dir_assertion. da ⇒ F``)
 
 val DExists_def = Define`
-  DExists (P : var -> dir_assertion) env = { ds |
-    ∃var val. ds ∈ (P var) (env|+(var,val)) }`
+  DExists (P : α -> dir_assertion) env = { ds | ∃v. ds ∈ (P v) env }`
 val _ = Parse.overload_on("?",``DExists``)
-val _ = Parse.overload_on("!",``λP:var -> dir_assertion. ¬∃v. ¬(P v)``)
+val _ = Parse.overload_on("!",``λP : α -> dir_assertion. ¬∃v. ¬(P v)``)
 
 (*
 
@@ -294,80 +286,74 @@ val _ = Hol_datatype`instrumented_state =
    ; vs : var |-> prog_value
    |>`
 
-val _ = type_abbrev("assertion",``:env -> instrumented_state set``)
+val _ = type_abbrev("assertion",``:instrumented_state set``)
 
 val Empty_def = Define`
-  Empty (env:env)
+  Empty
     = { <| fs := <| root := NONE; address_env := FEMPTY; inode_env := FEMPTY |>
          ; ph := <| filedesc_env := FEMPTY; dirstream_env := FEMPTY; heap_env := FEMPTY |>
          ; vs := FEMPTY
          |> }`
 
 val DirCell_def = Define`
-  DirCell addrvar path_exp da env = { state |
-    ∃ap ds addr.
-    (* Ramana: This doesn't make sense.
-               env : var |-> value,
-               but we need addr to be an address, not a value *)
-    FLOOKUP env addrvar = SOME addr ∧
+  DirCell addr path_exp da = { state |
+    ∃ap ds.
     FLOOKUP state.fs.address_env addr = SOME (ap,ds) ∧
-    eval_exp env exp {PathValue ap} ∧
-    ds ∈ da env }`
+    eval_exp state.vs path_exp {PathValue ap} ∧
+    ds ∈ da state.vs }`
 
 val RootCell_def = Define`
-  RootCell da env = { state |
+  RootCell da = { state |
     ∃ds. state.fs.root = SOME ds ∧
-    ds ∈ da env }`
+    ds ∈ da state.vs }`
 
 val FileCell_def = Define`
   FileCell inode_exp bytes_exp env = { state |
    ∃inode bytes.
    FLOOKUP state.fs.inode_env inode = SOME bytes ∧
-   eval_exp env inode_exp {ProgValue (Inode inode)} ∧
-   eval_exp env bytes_exp {ProgValue (Byte bytes)} }`
+   eval_exp state.vs inode_exp {ProgValue (Inode inode)} ∧
+   eval_exp state.vs bytes_exp {ProgValue (Byte bytes)} }`
 
 val FileDescCell_def = Define`
-  FileDescCell fd_exp inode_exp offset_exp env = { state |
+  FileDescCell fd_exp inode_exp offset_exp = { state |
     ∃fd inode offset.
     0 ≤ offset ∧
     FLOOKUP state.ph.filedesc_env fd = SOME (inode, Num offset) ∧
-    eval_exp env fd_exp {ProgValue (Ofaddr fd)} ∧
-    eval_exp env inode_exp {ProgValue (Inode inode)} ∧
-    eval_exp env offset_exp {ProgValue (Int offset)} }`
+    eval_exp state.vs fd_exp {ProgValue (Ofaddr fd)} ∧
+    eval_exp state.vs inode_exp {ProgValue (Inode inode)} ∧
+    eval_exp state.vs offset_exp {ProgValue (Int offset)} }`
 
 val DirStreamCell_def = Define`
-  DirStreamCell ds_exp names_exp env = { state |
+  DirStreamCell ds_exp names_exp = { state |
     ∃dirstr ns.
     FLOOKUP state.ph.dirstream_env dirstr = SOME { n | ProgValue(Path(Name n)) ∈ ns } ∧
-    eval_exp env ds_exp {ProgValue (Dirstream dirstr)} ∧
-    eval_exp env names_exp ns ∧
+    eval_exp state.vs ds_exp {ProgValue (Dirstream dirstr)} ∧
+    eval_exp state.vs names_exp ns ∧
     (∀v. v ∈ ns ⇒ ∃n. v = ProgValue(Path(Name n))) }`
 
 val HeapCell_def = Define`
-  HeapCell addr_exp val_exp env = { state |
+  HeapCell addr_exp val_exp = { state |
     ∃addr v.
     0 ≤ addr ∧
     FLOOKUP state.ph.heap_env (Num addr) = SOME v ∧
-    eval_exp env addr_exp {ProgValue (Int addr)} ∧
-    eval_exp env val_exp {ProgValue (Int v)} }`
+    eval_exp state.vs addr_exp {ProgValue (Int addr)} ∧
+    eval_exp state.vs val_exp {ProgValue (Int v)} }`
 
+(* Ramana: Why can't we just use ExpCell (ProgVar v) for this? *)
 val VarCell_def = Define`
-  VarCell var val_exp env = { state |
+  VarCell var val_exp = { state |
     ∃v.
     FLOOKUP state.vs var = SOME v ∧
-    eval_exp env val_exp {ProgValue v} }`
+    eval_exp state.vs val_exp {ProgValue v} }`
 
 val ExpCell_def = Define`
-  ExpCell prog_exp exp env = { state |
+  ExpCell prog_exp exp = { state |
     ∃thevalue.
-    (* Ramana: is state.vs supposed to only contain prog_values in its domain?
-       currently it contains values in its domain *)
-    (* Gian: Yes. Changed the range to prog_vals. Hope it works *)
     eval_prog_exp state.vs prog_exp thevalue ∧
-    eval_exp env exp {ProgValue thevalue} }`
+    eval_exp state.vs exp {ProgValue thevalue} }`
 
 val Exp_def = Define`
-  Exp exp env = { state | state | eval_exp env exp {ProgValue (Bool T)} }`
+  Exp exp = { state | state | eval_exp state.vs exp {ProgValue (Bool T)} }`
 
 val root_compose_def = Define`
   (root_compose NONE     NONE     x ⇔ (x = NONE)  ) ∧
@@ -390,23 +376,22 @@ val Star_def = Define`
       dfunion      vs1               vs2               state.vs }`
 
 val Lift_def = Define`
-  Lift f (a1:assertion) a2 env = { state | f (state ∈ a1 env) (state ∈ a2 env) }`
+  Lift f (a1:assertion) a2 = { state | f (state ∈ a1) (state ∈ a2) }`
 val _ = Parse.overload_on("/\\",``Lift $/\``)
 val _ = Parse.overload_on("\\/",``Lift $\/``)
-val _ = Parse.overload_on("F",``(K {}):assertion``)
-val _ = Parse.overload_on("T",``(K UNIV):assertion``)
+val _ = Parse.overload_on("F",``{}:assertion``)
+val _ = Parse.overload_on("T",``UNIV:assertion``)
 val _ = Parse.overload_on("==>",``Lift $==>``)
 val _ = Parse.overload_on("<=>",``Lift $<=>``)
 val _ = Parse.overload_on("~",``λa:assertion. a ⇒ F``)
 
 val Exists_def = Define`
-  Exists (P : var -> assertion) env = { state |
-    ∃var val. state ∈ (P var) (env|+(var,val)) }`
+  Exists (P : α -> assertion) = { state | ∃v. state ∈ (P v) }`
 val _ = Parse.overload_on("?",``Exists``)
-val _ = Parse.overload_on("!",``λP:var -> assertion. ¬∃v. ¬(P v)``)
+val _ = Parse.overload_on("!",``λP : α -> assertion. ¬∃v. ¬(P v)``)
 
 val SomeVarCell_def = Define`
-    SomeVarCell var = ∃v. (VarCell var (ProgExp (ProgVar v)))`
+    SomeVarCell var = ∃v. (VarCell var (Var v))`
 
 val Somewhere_def = Define`
   Somewhere (da: dir_assertion) =
@@ -444,6 +429,7 @@ val _ = type_abbrev("hoare_triple", ``:assertion # command # assertion``)
 
 (* AXIOMS *)
 (* GIAN: the type: var is defined as :num, so I use naturals as vars *)
+
 
 (* mkdir *)
 val mkdir =
