@@ -276,8 +276,7 @@ val DImplication_def = Define`
 
 val DExists_def = Define`
   DExists var (da: dir_assertion) env = { ds |
-    ∀v. v ∈ value ∧
-    ds ∈ da (FUPDATE env (var, v)) }`
+    ∃v. ds ∈ da (FUPDATE env (var, v)) }`
 
 (* Derived directory assertions *)
 val DForAll_def = Define`
@@ -328,7 +327,8 @@ val DirCell_def = Define`
     (* Ramana: This doesn't make sense.
                env : var |-> value,
                but we need addr to be an address, not a value *)
-    FLOOKUP env addrvar = SOME addr ∧
+    (* Gian: We have AddressValue constructor in value, this should fix it *)
+    FLOOKUP env addrvar = SOME (AddressValue addr) ∧
     FLOOKUP state.fs.address_env addr = SOME (ap,ds) ∧
     eval_exp env exp {PathValue ap} ∧
     ds ∈ da env }`
