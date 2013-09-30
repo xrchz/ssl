@@ -73,6 +73,8 @@ val _ = Hol_datatype `
   | Base of prog_exp
   | Dir of prog_exp`
 
+val _ = Parse.overload_on("/",``Concat``)
+
 val (eval_prog_exp_rules,eval_prog_exp_ind,eval_prog_exp_cases) = Hol_reln`
   (eval_prog_exp env (Lit l) l) ∧
 
@@ -217,6 +219,7 @@ val _ = type_abbrev("prog_env",``:var |-> prog_value``)
 val _ = type_abbrev("dir_assertion",``:prog_env -> forest set``)
 
 val DEmpty_def = Define`DEmpty env = { [] }`
+val _ = Parse.overload_on("∅",``DEmpty``)
 
 val DFileLink_def = Define`
   DFileLink e1 e2 env = { [FileLink n b] |
@@ -234,6 +237,7 @@ val DExp_def = Define`
 val DConcat_def = Define`
   DConcat (da1:dir_assertion) (da2:dir_assertion) env =
     { l1++l2 | l1 ∈ da1 env ∧ l2 ∈ da2 env }`
+val _ = Parse.overload_on("+",``DConcat``)
 
 val DContextApplication_def = Define`
   DContextApplication (da1:dir_assertion) addr (da2:dir_assertion) env =
@@ -431,24 +435,40 @@ val _ = Hol_datatype `command =
 val _ = type_abbrev("hoare_triple", ``:assertion # command # assertion``)
 
 (* AXIOMS *)
-(* GIAN: the type: var is defined as :num, so I use naturals as vars *)
-
 
 (* mkdir *)
-val mkdir =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
-		(DirCell 5 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
-							     (DConjunction (DExp (Var 6)) 
-						           		   (NameNotThere 
-										(ProgExp (ProgVar 4)))))))),
-    (Mkdir 0 1),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
-		(DirCell 5 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
-							     (DConcat (DExp (Var 6))
-								      (DDirectory (ProgExp (ProgVar 4)) 
-										  Empty))))))
+(* Ramana:
+   All the lowercase names here (r,p,b,a,v,c,path) are HOL variables.
+   mkdir is schematic in them - any one of those variables can be instantiated with another HOL term.
+   r, path, and v are of type var. they are program variables, and are affected by the * operator:
+     if the same one appears in more than one starred conjunct, the triple becomes vacuous, since
+     the star is ensuring all the program variables are disjoint between assertions.
+   c is of type value. it is a logical variable standing for whatever condition you want.
+   p, b, and a are of type path.
+   I figure the axiom is really a schema for any particular path names you want to put in those places,
+   so the axiom talks about literal paths but we put a HOL variable for the path name.
+*)
+val mkdir = ``
+    (SomeVarCell r
+     *
+     VarCell path (ProgExp (Lit (Path p) / Lit (Path b) / Lit (Path a)))
+     *
+     DirCell v (ProgExp (Lit (Path p)))
+       (DDirectory (ProgExp (Lit (Path b)))
+         (DExp (Var c) ∧ NameNotHere (ProgExp (Lit (Path a)))))
+
+    ,Mkdir r path
+
+    ,VarCell r (ProgExp (Lit (Int 0)))
+     *
+     VarCell path (ProgExp (Lit (Path p) / Lit (Path b) / Lit (Path a)))
+     *
+     DirCell v (ProgExp (Lit (Path p)))
+       (DDirectory (ProgExp (Lit (Path b)))
+         (DExp (Var c)
+          +
+          DDirectory (ProgExp (Lit (Path a))) ∅))
+    )``
 
 (* mkdir, directly under root case *)
 val mkdir_root =
