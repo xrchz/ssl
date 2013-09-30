@@ -45,7 +45,7 @@ val path_dir_def = Define`
 val _ = type_abbrev("abspath", ``:path # address option``)
 
 val _ = Hol_datatype `ftype =
-  File | Directory`
+  TFile | TDirectory`
 
 val _ = type_abbrev("bytes",``:char list``)
 
@@ -325,6 +325,9 @@ val Empty_def = Define`
 val DirCell_def = Define`
   DirCell addrvar path_exp da env = { state |
     ∃ap ds addr.
+    (* Ramana: This doesn't make sense.
+               env : var |-> value,
+               but we need addr to be an address, not a value *)
     FLOOKUP env addrvar = SOME addr ∧
     FLOOKUP state.fs.address_env addr = SOME (ap,ds) ∧
     eval_exp env exp {PathValue ap} ∧
@@ -426,13 +429,12 @@ val Implication_def = Define`
 
 val Exists_def = Define`
   Exists var a env = { state |
-    ∀v. v ∈ value ∧
-    state ∈ a (FUPDATE env (var, v)) }`
+    ∃v. state ∈ a (FUPDATE env (var, v)) }`
 
 (* Derived directory assertions *)
 val ForAll_def = Define`
   ForAll var a =
-    Neg (Exists var (Neg da))`
+    Neg (Exists var (Neg a))`
 
 val True_def = Define`
   True = Neg False`
