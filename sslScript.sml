@@ -373,7 +373,10 @@ val Star_def = Define`
       dfunion      ph1.filedesc_env  ph2.filedesc_env  state.ph.filedesc_env  ∧
       dfunion      ph1.dirstream_env ph2.dirstream_env state.ph.dirstream_env ∧
       dfunion      ph1.heap_env      ph2.heap_env      state.ph.heap_env ∧
-      dfunion      vs1               vs2               state.vs }`
+      dfunion      vs1               vs2               state.vs ∧
+      <| fs:=fs1; ph:=ph1; vs:=vs1 |> ∈ a1 ∧
+      <| fs:=fs2; ph:=ph2; vs:=vs2 |> ∈ a2 }`
+val _ = Parse.overload_on("*",``Star``)
 
 val Lift_def = Define`
   Lift f (a1:assertion) a2 = { state | f (state ∈ a1) (state ∈ a2) }`
