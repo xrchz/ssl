@@ -478,39 +478,52 @@ val mkdir = ``
 val mkdir_root = ``
     (SomeVarCell r
      *
-	   VarCell path (ProgExp (Lit (Path Root) / Lit (Path a)))
+     VarCell path (ProgExp (Lit (Path Root) / Lit (Path a)))
      *
-		 RootCell (DExp (Val c) ∧ (NameNotHere (ProgExp (Lit (Path a)))))
+     RootCell (DExp (Val c) ∧ (NameNotHere (ProgExp (Lit (Path a)))))
 
     ,Mkdir r path
 
     ,VarCell r (ProgExp (Lit (Int 0)))
      *
-	   VarCell path (ProgExp (Lit (Path Root) / Lit (Path a)))
+     VarCell path (ProgExp (Lit (Path Root) / Lit (Path a)))
      *
-		 RootCell (DExp (Val c) + (DDirectory (ProgExp (Lit (Path a))) ∅))
+     RootCell (DExp (Val c) + (DDirectory (ProgExp (Lit (Path a))) ∅))
     )``
 
 (* rename, dir, move, target not exists *)
-val rename_dir_move_not_exist =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (Concat (ProgVar 6) (ProgVar 7)))))
-		      (Star (DirCell 8 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
-									 (DConjunction (DExp (Var 9))
-										       CompleteTree)))
-			    (DirCell 10 (ProgExp (ProgVar 5)) (DDirectory (ProgExp (ProgVar 6))
-									  (DConjunction (DExp (Var 11))
-											(NameNotThere (ProgExp (ProgVar 7)))))))))),
-    (Rename 0 1 4),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (Concat (ProgVar 6) (ProgVar 7)))))
-		      (Star (DirCell 8 (ProgExp (ProgVar 2)) DEmpty)
-			    (DirCell 10 (ProgExp (ProgVar 5)) (DDirectory (ProgExp (ProgVar 6))
-									  (DConcat (DExp (Var 11))
-										   (DDirectory (ProgExp (ProgVar 3))
-											       (DExp (Var 9))))))))))
+val rename_dir_move_not_exist = ``
+    (SomeVarCell r
+     *
+     VarCell old (ProgExp (Lit (Path p) / Lit (Path a)))
+     *
+     VarCell new (ProgExp (Lit (Path p') / Lit (Path d) / Lit (Path b))) (* Ramana: do we need p ≠ p'? *)
+     *
+     DirCell v (ProgExp (Lit (Path p)))
+       (DDirectory (ProgExp (Lit (Path a)))
+         (DExp (Val c) ∧ CompleteTree))
+     *
+     DirCell w (ProgExp (Lit (Path p')))
+       (DDirectory (ProgExp (Lit (Path d)))
+         (Dexp (Val c') ∧ NameNotHere (ProgExp (Lit (Path b)))))
+
+    ,Rename r old new
+
+    ,VarCell r (ProgExp (Lit (Int 0)))
+     *
+     VarCell old (ProgExp (Lit (Path p) / (Lit (Path a))))
+     *
+     VarCell new (ProgExp (Lit (Path p') / Lit (Path d) / Lit (Path b)))
+     *
+     DirCell v (ProgExp (Lit (Path p))) ∅
+     *
+     DirCell w (ProgExp (Lit (Path p')))
+      (DDirectory (ProgExp (Lit (Path d)))
+        (DExp (Val c')
+         +
+       (DDirectory (ProgExp (Lit (Path b)))
+           (DExp (Val c))))) (* Ramana: why is CompleteTree not re-asserted? *)
+    )``
 
 (* rename, dir, move, targe not exists, under root *)
 val rename_dir_move_not_exist_root =
