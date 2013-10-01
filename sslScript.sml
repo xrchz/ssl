@@ -442,10 +442,11 @@ val _ = type_abbrev("hoare_triple", ``:assertion # command # assertion``)
 (* Ramana:
    All the lowercase names here (r,p,b,a,v,c,path) are HOL variables.
    mkdir is schematic in them - any one of those variables can be instantiated with another HOL term.
-   r, path, and v are of type var. they are program variables, and are affected by the * operator:
+   r and path are of type var. they are program variables, and are affected by the * operator:
      if the same one appears in more than one starred conjunct, the triple becomes vacuous, since
      the star is ensuring all the program variables are disjoint between assertions.
-   c is of type value set. it is a logical variable standing for whatever set of forests you want.
+   v is of type address, and is also affected by * because the address_env is split.
+   c is of type value set. it is a logical variable standing for whatever set you want.
    p, b, and a are of type path.
    I figure the axiom is really a schema for any particular path names you want to put in those places,
    so the axiom talks about literal paths but we put a HOL variable for the path name.
@@ -458,6 +459,7 @@ val mkdir = ``
      DirCell v (ProgExp (Lit (Path p)))
        (DDirectory (ProgExp (Lit (Path b)))
          (DExp (Val c) ∧ NameNotHere (ProgExp (Lit (Path a)))))
+         (* Ramana: should we constrain c to only contain ForestValues here? *)
 
     ,Mkdir r path
 
