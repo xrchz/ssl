@@ -443,7 +443,8 @@ val _ = overload_on("Safe",``λn. NameNotHere (ProgExp n)``)
 val _ = overload_on("VarP",``λvar path. VarCell var (ProgExp path)``)
 val _ = overload_on("VarI",``λvar int. VarCell var (ProgExp (Lit (Int int)))``)
 val _ = overload_on("DirP",``λaddr path da. DirCell addr (ProgExp path) da``)
-val _ = overload_on("DFileP",``λname inode. DFileLink (ProgExp name) (ProgExp inode)``)
+val _ = overload_on(":>",``λname inode. DFileLink (ProgExp name) (ProgExp inode)``)
+val _ = add_infix(":>",425,NONASSOC)
 
 (* mkdir *)
 (* Ramana:
@@ -627,7 +628,7 @@ val rename_move_file_not_exist =``
     (SomeVarCell r
      * VarP old (P / A)
      * VarP new (P' / D / B)
-     * DirP v P (DFileP A I)
+     * DirP v P (A :> I)
      * DirP w P' (DDir D (C ∧ Safe B))
 
     ,Rename r old new
@@ -636,50 +637,73 @@ val rename_move_file_not_exist =``
      * VarP old (P / A)
      * VarP new (P' / D / B)
      * DirP v P ∅
-     * DirP w P' (DDir D (C + (DFileP B I)))
+     * DirP w P' (DDir D (C + (B :> I)))
     )``
 
 (* rename: move, file, target not exists under root *)
-val rename_move_file_not_exist_root =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 5))))
-		      (Star (DirCell 6 (ProgExp (ProgVar 2)) (DFileLink (ProgExp (ProgVar 3)) (ProgExp (ProgVar 7))))
-			    (RootCell (DConjunction (DExp (Var 8)) (NameNotThere (ProgExp (ProgVar 5))))))))),
-    (Rename 0 1 4),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 5))))
-		      (Star (DirCell 6 (ProgExp (ProgVar 2)) DEmpty)
-			    (RootCell (DConcat (DExp (Var 8)) (DFileLink (ProgExp (ProgVar 5)) (ProgExp (ProgVar 7)))))))))
+val rename_move_file_not_exist_root = ``
+    let P = Lit (Path p) in
+    let A = Name a in
+    let B = Name b in
+    let I = Lit (Inode i) in
+    let C = DExp (Val c) in
+
+    (SomeVarCell 0
+     * VarP old (P / A)
+     * VarP new (Root / B)
+     * DirP v P (A :> I)
+     * RootCell (C ∧ Safe B)
+
+    ,Rename r old new
+
+    ,VarI r 0
+     * VarP old (P / A)
+     * VarP new (Root / B)
+     * DirP v P ∅
+     * RootCell (C + (B :> I))
+    )``
 
 (* rename: file, target not exist *)
-val rename_file_not_exist =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
-		(Star (VarCell 5 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 6)))))
-		      (DirCell 7 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
-								   (DConcat (DFileLink (ProgExp (ProgVar 4)) (ProgExp (ProgVar 8)))
-									    (DConjunction (DExp (Var 9)) (NameNotThere (ProgExp (ProgVar 6)))))))))),
-    (Rename 0 1 5),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
-		(Star (VarCell 5 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 6)))))
-		      (DirCell 7 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
-								   (DConcat (DExp (Var 9)) (DFileLink (ProgExp (ProgVar 6)) (ProgExp (ProgVar 8)))))))))
+val rename_file_not_exist = ``
+    let P = Lit (Path p) in
+    let D = Lit (Path d) in
+    let A = Name a in
+    let B = Name b in
+    let I = Lit (Inode i) in
+    let C = DExp (Val c) in
+
+    (SomeVarCell r
+	   * VarP old (P / D / A)
+     * VarP new (P / D / B)
+     * DirP v P (DDir D (C + (A :> I) ∧ Safe B))
+
+    ,Rename r old new
+
+    ,VarI r 0
+	   * VarP old (P / D / A)
+     * VarP new (P / D / B)
+     * DirP v P (DDir D (C + (B :> I)))
+    )``
 
 (* rename: file, target not exist under root *)
-val rename_file_not_exist_root =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 2))))
-		(Star (VarCell 3 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 4))))
-		      (RootCell (DConcat (DFileLink (ProgExp (ProgVar 2)) (ProgExp (ProgVar 5)))
-					 (DConjunction (DExp (Var 6)) (NameNotThere (ProgExp (ProgVar 4))))))))),
-    (Rename 0 1 3),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 2))))
-		(Star (VarCell 3 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 4))))
-		      (RootCell (DConcat (DExp (Var 6)) (DFileLink (ProgExp (ProgVar 4)) (ProgExp (ProgVar 5))))))))
+val rename_file_not_exist_root = ``
+    let A = Name a in
+    let B = Name b in
+    let I = Lit (Inode i) in
+    let C = DExp (Val c) in
+
+    (SomeVarCell r
+	   * VarP old (Root / A)
+     * VarP new (Root / B)
+     * RootCell (C + (A :> I) ∧ Safe B)
+
+    ,Rename r old new
+
+    ,VarI r 0
+	   * VarP old (Root / A)
+     * VarP new (Root / B)
+     * RootCell (C + (B :> I))
+    )``
 
 (* rename: file, target exists *)
 val rename_file_exist =
