@@ -445,6 +445,9 @@ val _ = overload_on("VarI",``λvar int. VarCell var (ProgExp (Lit (Int int)))``)
 val _ = overload_on("DirP",``λaddr path da. DirCell addr (ProgExp path) da``)
 val _ = overload_on(":>",``λname inode. DFileLink (ProgExp name) (ProgExp inode)``)
 val _ = add_infix(":>",425,NONASSOC)
+val _ = overload_on("=",``λe1 e2. Exp (ProgExp (Equal e1 e2))``)
+val _ = overload_on("<>",``λe1 e2. Exp (ProgExp (Neg (Equal e1 e2)))``)
+val _ = Unicode.uoverload_on(Unicode.UChar.neq,``λe1 e2. Exp (ProgExp (Neg (Equal e1 e2)))``)
 
 (* mkdir *)
 (* Ramana:
@@ -706,83 +709,69 @@ val rename_file_not_exist_root = ``
     )``
 
 (* rename: file, target exists *)
-val rename_file_exist =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (ProgVar 6))))
-		      (Star (DirCell 7 (ProgExp (ProgVar 2)) (DFileLink (ProgExp (ProgVar 3)) (ProgExp (ProgVar 8))))
-			    (DirCell 9 (ProgExp (ProgVar 5)) (Conjunction (DFileLink (ProgExp (ProgVar 6)) (ProgExp (ProgVar 10)))
-									  (Neg (Exp (Equal (ProgExp (ProgVar 8)) (ProgExp (ProgVar 10))))))))))),
-    (Rename 0 1 4),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (ProgVar 6))))
-		      (Star (DirCell 7 (ProgExp (ProgVar 2)) DEmpty)
-			    (DirCell 9 (ProgExp (ProgVar 5)) (DFileLink (ProgExp (ProgVar 6)) (ProgExp (ProgVar 8))))))))
+val rename_file_exist = ``
+    let P = Lit (Path p) in
+    let A = Name a in
+    let P' = Lit (Path p') in
+    let B = Name b in
+    let I = Lit (Inode i) in
+    let I' = Lit (Inode i') in
+
+    (SomeVarCell r
+	   * VarP old (P / A)
+     * VarP new (P' / B)
+     * DirP v P (A :> I)
+     * DirP w P' (B :> I')
+     ∧ I ≠ I'
+
+    ,Rename r old new
+
+    ,VarI r 0
+	   * VarP old (P / A)
+     * VarP new (P' / B)
+     * DirP v P ∅
+     * DirP w P' (B :> I)
+    )``
 
 (* rename: file, target exist, same inode *)
-val rename_file_exist_same =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (ProgVar 6))))
-		      (Star (DirCell 7 (ProgExp (ProgVar 2)) (DFileLink (ProgExp (ProgVar 3)) (ProgExp (ProgVar 8))))
-			    (DirCell 9 (ProgExp (ProgVar 5)) (Conjunction (DFileLink (ProgExp (ProgVar 6)) (ProgExp (ProgVar 8))))))))),
-    (Rename 0 1 4),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (ProgVar 6))))
-		      (Star (DirCell 7 (ProgExp (ProgVar 2)) (DFileLink (ProgExp (ProgVar 3)) (ProgExp (ProgVar 8))))
-			    (DirCell 9 (ProgExp (ProgVar 5)) (Conjunction (DFileLink (ProgExp (ProgVar 6)) (ProgExp (ProgVar 8)))))))))
+val rename_file_exist_same = ``
+    let P = Lit (Path p) in
+    let A = Name a in
+    let P' = Lit (Path p') in
+    let B = Name b in
+    let I = Lit (Inode i) in
+
+    (SomeVarCell r
+	   * VarP old (P / A)
+     * VarP new (P' / B)
+     * DirP v P (A :> I)
+     * DirP w P' (B :> I)
+
+    ,Rename r old new
+
+    ,VarI r 0
+	   * VarP old (P / A)
+     * VarP new (P' / B)
+     * DirP v P (A :> I)
+     * DirP w P' (B :> I)
+    )``
 
 (* rename: same paths *)
-val rename_same =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		      (DirCell 5 (ProgExp (ProgVar 2)) (DConjuntion (DExp (Var 6)) (Entry (ProgExp (ProgVar 3)))))))),
-    (Rename 0 1 4),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		      (DirCell 5 (ProgExp (ProgVar 2)) (DExp (Var 6))))))
+val rename_same = ``
+    let P = Lit (Path p) in
+    let A = Lit (Path a) in
 
-(*
-Val _ = Hol_datatype`
-  assertion =
-    Empty
-  | DirCell of address => exp => dir_assertion
-  | FileCell of exp => exp
-  | DescCell of exp => exp => exp
-  | DirStreamCell of exp => exp
-  | HeapCell of exp => exp
-  | VarCell of var => exp
-  | ExpCell of exp => exp
-  | Exp of exp`
+    (SomeVarCell 0
+	   * VarP old (P / A)
+     * VarP new (P / A)
+     * DirP v P (da ∧ Entry (ProgExp A))
 
-  assertion_semantics : assertion -> (var |-> value) -> instrumented_state set
+    ,Rename r old new
 
-eval_exp : (var |-> value) exp -> value
-
-val assertion_semantics_def = Define`
-  assertion_semantics env Empty = { <| fs = <| root = NONE; address_env = FEMPTY; inode_env = FEMPTY |>
-                                     ; ph = <| filedesc_env := FEMPTY; dirstream_env := FEMPTY |>
-                                     ; vs = FEMPTY
-                                     |> } ∧
-  assertion_semantics env (DirCell addr exp dir_assertion)
-  assertion_semantics env (FileCell e1 e2) = { is |
-    ∃n b.
-      eval_exp env e1 = Inode n ∧
-      eval_exp env e2 = Byte b ∧
-      FLOOKUP is.fs.inode_env n = SOME b } ∧
-  assertion_semantics env 
-
-
-{ assertion language } programming language { assertion language }
-
-val (assertion_semantics_rules,assertion_semantics_ind,assertion_semantics_cases)
-assertion includes:
-  program expressions
-  logical expressions
-*)
+    ,VarI r 0
+	   * VarP old (P / A)
+     * VarP new (P / A)
+     * DirP v P da
+    )``
 
 val _ = export_theory()
