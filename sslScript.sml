@@ -20,6 +20,7 @@ val _ = Hol_datatype `path =
   | RelPath of name => relpath`
 
 val _ = overload_on("Name",``λn. RelPath n []``)
+val _ = overload_on("Root",``AbsPath []``)
 
 val path_concat_def = Define`
   (path_concat EmptyPath p = SOME p) ∧
@@ -472,14 +473,21 @@ val mkdir = ``
     )``
 
 (* mkdir, directly under root case *)
-val mkdir_root =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 2))))
-		(RootCell (Conjunction (DExp (Var 3)) (NameNotThere (ProgExp (ProgVar 2))))))),
-    (Mkdir 0 1),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 2))))
-		(RootCell (DConcat (DExp (Var 3)) (DDirectory (ProgExp (ProgVar 2)) Empty)))))
+val mkdir_root = ``
+    (SomeVarCell r
+     *
+	   VarCell path (ProgExp (Lit (Path Root) / Lit (Path a)))
+     *
+		 RootCell (DExp (Val c) ∧ (NameNotHere (ProgExp (Lit (Path a)))))
+
+    ,Mkdir r path
+
+    ,VarCell r (ProgExp (Lit (Int 0)))
+     *
+	   VarCell path (ProgExp (Lit (Path Root) / Lit (Path a)))
+     *
+		 RootCell (DExp (Val c) + (DDirectory (ProgExp (Lit (Path a))) ∅))
+    )``
 
 (* rename, dir, move, target not exists *)
 val rename_dir_move_not_exist =
