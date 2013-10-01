@@ -176,8 +176,8 @@ val _ = Hol_datatype `value =
 val _ = Hol_datatype `
   exp =
     ProgExp of prog_exp
-  | Var of value
-  | AddrVar of address
+  | Val of value set
+  | AddrVal of address
   | Union of exp => exp
   | Inter of exp => exp
   | Diff of exp => exp
@@ -195,9 +195,9 @@ val (eval_exp_rules,eval_exp_ind,eval_exp_cases) = Hol_reln`
    ⇒
    eval_exp env (ProgExp pe) {ProgValue pv}) ∧
 
-  (eval_exp env (Var v) {v}) ∧
+  (eval_exp env (Val vs) vs) ∧
 
-  (eval_exp env (AddrVar a) {AddressValue a}) ∧
+  (eval_exp env (AddrVal a) {AddressValue a}) ∧
 
   (eval_exp env e1 vs1 ∧
    eval_exp env e2 vs2
@@ -398,7 +398,7 @@ val _ = Parse.overload_on("?",``Exists``)
 val _ = Parse.overload_on("!",``λP : α -> assertion. ¬∃v. ¬(P v)``)
 
 val SomeVarCell_def = Define`
-    SomeVarCell var = ∃v. (VarCell var (Var v))`
+    SomeVarCell var = ∃v. (VarCell var (Val {ProgValue v}))`
 
 val Somewhere_def = Define`
   Somewhere (da: dir_assertion) =
@@ -408,15 +408,16 @@ val SomewhereTop_def = Define`
     SomewhereTop (da: dir_assertion) = DConcat T da`
 
 val CompleteTree_def = Define`
-  CompleteTree = ¬(∃x. (Somewhere (DExp (AddrVar x))))`
+  CompleteTree = ¬(∃x. (Somewhere (DExp (AddrVal x))))`
 
+(* Ramana: Do you require some variable to bind v in the program environment? *)
 val Entry_def = Define`
   Entry name_exp =
     ((DDirectory name_exp T) ∨
-		 (∃x. DFileLink name_exp (ProgExp (ProgVar x))))`
+		 (∃v. DFileLink name_exp (Val {ProgValue v})))`
 
 val TopAddress_def = Define`
-  TopAddress = ∃x. (SomewhereTop (DExp (AddrVar x)))`
+  TopAddress = ∃x. (SomewhereTop (DExp (AddrVal x)))`
 
 val TopContents_def = Define`
   TopContents (da: dir_assertion) = (da ∧ ¬TopAddress)`
@@ -443,7 +444,7 @@ val _ = type_abbrev("hoare_triple", ``:assertion # command # assertion``)
    r, path, and v are of type var. they are program variables, and are affected by the * operator:
      if the same one appears in more than one starred conjunct, the triple becomes vacuous, since
      the star is ensuring all the program variables are disjoint between assertions.
-   c is of type value. it is a logical variable standing for whatever condition you want.
+   c is of type value set. it is a logical variable standing for whatever set of forests you want.
    p, b, and a are of type path.
    I figure the axiom is really a schema for any particular path names you want to put in those places,
    so the axiom talks about literal paths but we put a HOL variable for the path name.
@@ -455,7 +456,7 @@ val mkdir = ``
      *
      DirCell v (ProgExp (Lit (Path p)))
        (DDirectory (ProgExp (Lit (Path b)))
-         (DExp (Var c) ∧ NameNotHere (ProgExp (Lit (Path a)))))
+         (DExp (Val c) ∧ NameNotHere (ProgExp (Lit (Path a)))))
 
     ,Mkdir r path
 
@@ -465,7 +466,7 @@ val mkdir = ``
      *
      DirCell v (ProgExp (Lit (Path p)))
        (DDirectory (ProgExp (Lit (Path b)))
-         (DExp (Var c)
+         (DExp (Val c)
           +
           DDirectory (ProgExp (Lit (Path a))) ∅))
     )``
