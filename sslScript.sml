@@ -436,6 +436,8 @@ val _ = type_abbrev("hoare_triple", ``:assertion # command # assertion``)
 
 (* AXIOMS *)
 
+val _ = overload_on("DDir",``λe da. DDirectory (ProgExp e) da``)
+
 (* mkdir *)
 (* Ramana:
    All the lowercase names here (r,p,b,a,v,c,path) are HOL variables.
@@ -453,12 +455,13 @@ val mkdir = ``
     let P = Lit (Path p) in
     let B = Lit (Path b) in
     let A = Lit (Path a) in
+
     (SomeVarCell r
      *
      VarCell path (ProgExp (P / B / A))
      *
      DirCell v (ProgExp P)
-       (DDirectory (ProgExp B)
+       (DDir B
          (DExp (Val c) ∧ NameNotHere (ProgExp A)))
          (* Ramana: should we constrain c to only contain ForestValues here? *)
 
@@ -469,15 +472,16 @@ val mkdir = ``
      VarCell path (ProgExp (P / B / A))
      *
      DirCell v (ProgExp P)
-       (DDirectory (ProgExp B)
+       (DDir B
          (DExp (Val c)
           +
-          DDirectory (ProgExp A) ∅))
+          DDir A ∅))
     )``
 
 (* mkdir, directly under root case *)
 val mkdir_root = ``
     let A = Lit (Path a) in
+
     (SomeVarCell r
      *
      VarCell path (ProgExp (Root / A))
@@ -490,7 +494,7 @@ val mkdir_root = ``
      *
      VarCell path (ProgExp (Root / A))
      *
-     RootCell (DExp (Val c) + (DDirectory (ProgExp A) ∅))
+     RootCell (DExp (Val c) + (DDir A ∅))
     )``
 
 (* rename, dir, move, target not exists *)
@@ -500,6 +504,7 @@ val rename_dir_move_not_exist = ``
     let A = Lit (Path a) in
     let P' = Lit (Path p') in
     let B = Lit (Path b) in
+
     (SomeVarCell r
      *
      VarCell old (ProgExp (P / A))
@@ -507,11 +512,11 @@ val rename_dir_move_not_exist = ``
      VarCell new (ProgExp (P' / D / B)) (* Ramana: do we need p ≠ p'? *)
      *
      DirCell v (ProgExp P)
-       (DDirectory (ProgExp A)
+       (DDir A
          (DExp (Val c) ∧ CompleteTree))
      *
      DirCell w (ProgExp P')
-       (DDirectory (ProgExp D)
+       (DDir D
          (Dexp (Val c') ∧ NameNotHere (ProgExp B)))
 
     ,Rename r old new
@@ -525,10 +530,10 @@ val rename_dir_move_not_exist = ``
      DirCell v (ProgExp P) ∅
      *
      DirCell w (ProgExp P')
-      (DDirectory (ProgExp D)
+      (DDir D
         (DExp (Val c')
          +
-        (DDirectory (ProgExp B)
+        (DDir B
           (DExp (Val c))))) (* Ramana: why is CompleteTree not re-asserted? *)
     )``
 
@@ -537,6 +542,7 @@ val rename_dir_move_not_exist_root = ``
     let P = Lit (Path p) in
     let A = Lit (Path a) in
     let B = Lit (Path b) in
+
     (SomeVarCell r
      *
      VarCell old (ProgExp (P / A))
@@ -544,7 +550,7 @@ val rename_dir_move_not_exist_root = ``
      VarCell new (ProgExp (Root / B))
      *
      DirCell v (ProgExp P)
-       (DDirectory (ProgExp A)
+       (DDir A
          (DExp (Val c) ∧ CompleteTree))
      *
      RootCell (DExp (Val c') ∧ (NameNotHere (ProgExp B)))
@@ -562,29 +568,44 @@ val rename_dir_move_not_exist_root = ``
      RootCell
        (DExp (Val c')
         +
-        DDirectory (ProgExp B)
-          (DExp (Val c)))
+        DDir B (DExp (Val c)))
     )``
 
 (* rename, dir, target not exists *)
-val rename_dir_not_exist =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
-		(Star (VarCell 5 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 6)))))
-		      (DirCell 7 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
-								   (DConcat (DDirectory (ProgExp (ProgVar 4))
-											(DConjunction (DExp (Var 8))
-												      CompleteTree))
-									    (DConjunction (DExp (Var 9))
-											  (NameNotThere (ProgExp (ProgVar 6)))))))))),
-    (Rename 0 1 5),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
-		(Star (VarCell 5 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 6)))))
-		      (DirCell 7 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
-								   (DConcat (DExp (Var 9))
-									    (DDirectory (ProgExp (ProgVar 6))
-											(DExp (Var 8)))))))))
+val rename_dir_not_exist = ``
+    let P = Lit (Path p) in
+    let D = Lit (Path d) in
+    let A = Lit (Path a) in
+    let B = Lit (Path b) in
+
+    (SomeVarCell r
+     *
+     VarCell old (ProgExp (P / D / A))
+     *
+     VarCell new (ProgExp (P / D / B))
+     *
+     DirCell v (ProgExp P)
+       (DDir D
+         (DExp (Val c)
+          +
+          DDir A
+           (DExp (Val c') ∧ CompleteTree))
+         ∧ NameNotHere (ProgExp B))
+
+    ,Rename r old new
+
+    ,VarCell r (ProgExp (Lit (Int 0)))
+     *
+     VarCell old (ProgExp (P / D / A))
+     *
+     VarCell new (ProgExp (P / D / B))
+     *
+     DirCell v (ProgExp P)
+       (DDir D
+         (DExp (Val c)
+          +
+          DDir B (DExp (Val c'))))
+    )``
 
 (* rename, dir, target not exist, root *)
 val rename_dir_not_exist_root =
