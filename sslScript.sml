@@ -19,8 +19,8 @@ val _ = Hol_datatype `path =
   | AbsPath of relpath
   | RelPath of name => relpath`
 
-val _ = overload_on("Name",``λn. RelPath n []``)
-val _ = overload_on("Root",``AbsPath []``)
+val _ = overload_on("NamePath",``λn. RelPath n []``)
+val _ = overload_on("RootPath",``AbsPath []``)
 
 val path_concat_def = Define`
   (path_concat EmptyPath p = SOME p) ∧
@@ -60,6 +60,9 @@ val _ = Hol_datatype `prog_value =
   | Dirstream of dirstream
   | FType of ftype`
 
+val _ = overload_on("NameVal",``λn. Path (NamePath n)``)
+val _ = overload_on("RootVal",``Path RootPath``)
+
 val _ = Hol_datatype `
   prog_exp =
     Lit of prog_value
@@ -73,6 +76,9 @@ val _ = Hol_datatype `
   | Concat of prog_exp => prog_exp
   | Base of prog_exp
   | Dir of prog_exp`
+
+val _ = overload_on("Name",``λn. Lit (NameVal n)``)
+val _ = overload_on("Root",``Lit RootVal``)
 
 val _ = Parse.overload_on("/",``Concat``)
 
@@ -224,12 +230,12 @@ val _ = Parse.overload_on("∅",``DEmpty``)
 
 val DFileLink_def = Define`
   DFileLink e1 e2 env = { [FileLink n b] |
-    eval_exp env e1 {ProgValue (Path (Name n))} ∧
+    eval_exp env e1 {ProgValue (NameVal n)} ∧
     eval_exp env e2 {ProgValue (Inode b)}}`
 
 val DDirectory_def = Define`
   DDirectory e (da:dir_assertion) env = { [Directory n ds] |
-    eval_exp env e {ProgValue (Path (Name n))} ∧
+    eval_exp env e {ProgValue (NameVal n)} ∧
     da env ds }`
 
 val DExp_def = Define`
@@ -264,14 +270,6 @@ val DExists_def = Define`
   DExists (P : α -> dir_assertion) env = { ds | ∃v. ds ∈ (P v) env }`
 val _ = Parse.overload_on("?",``DExists``)
 val _ = Parse.overload_on("!",``λP : α -> dir_assertion. ¬∃v. ¬(P v)``)
-
-(*
-
-type_of
-``DConcat (DDirectory (ProgExp(Lit(Path(Name a)))) DEmpty)
-          (DDirectory (ProgExp(Lit(Path(Name b)))) DEmpty)``
-
-*)
 
 val _ = Hol_datatype`instrumented_filesystem =
   <| root : forest option
@@ -331,10 +329,10 @@ val FileDescCell_def = Define`
 val DirStreamCell_def = Define`
   DirStreamCell ds_exp names_exp = { state |
     ∃dirstr ns.
-    FLOOKUP state.ph.dirstream_env dirstr = SOME { n | ProgValue(Path(Name n)) ∈ ns } ∧
+    FLOOKUP state.ph.dirstream_env dirstr = SOME { n | ProgValue(NameVal n) ∈ ns } ∧
     eval_exp state.vs ds_exp {ProgValue (Dirstream dirstr)} ∧
     eval_exp state.vs names_exp ns ∧
-    (∀v. v ∈ ns ⇒ ∃n. v = ProgValue(Path(Name n))) }`
+    (∀v. v ∈ ns ⇒ ∃n. v = ProgValue(NameVal n)) }`
 
 val HeapCell_def = Define`
   HeapCell addr_exp val_exp = { state |
@@ -452,95 +450,121 @@ val _ = type_abbrev("hoare_triple", ``:assertion # command # assertion``)
    so the axiom talks about literal paths but we put a HOL variable for the path name.
 *)
 val mkdir = ``
+    let P = Lit (Path p) in
+    let B = Lit (Path b) in
+    let A = Lit (Path a) in
     (SomeVarCell r
      *
-     VarCell path (ProgExp (Lit (Path p) / Lit (Path b) / Lit (Path a)))
+     VarCell path (ProgExp (P / B / A))
      *
-     DirCell v (ProgExp (Lit (Path p)))
-       (DDirectory (ProgExp (Lit (Path b)))
-         (DExp (Val c) ∧ NameNotHere (ProgExp (Lit (Path a)))))
+     DirCell v (ProgExp P)
+       (DDirectory (ProgExp B)
+         (DExp (Val c) ∧ NameNotHere (ProgExp A)))
          (* Ramana: should we constrain c to only contain ForestValues here? *)
 
     ,Mkdir r path
 
     ,VarCell r (ProgExp (Lit (Int 0)))
      *
-     VarCell path (ProgExp (Lit (Path p) / Lit (Path b) / Lit (Path a)))
+     VarCell path (ProgExp (P / B / A))
      *
-     DirCell v (ProgExp (Lit (Path p)))
-       (DDirectory (ProgExp (Lit (Path b)))
+     DirCell v (ProgExp P)
+       (DDirectory (ProgExp B)
          (DExp (Val c)
           +
-          DDirectory (ProgExp (Lit (Path a))) ∅))
+          DDirectory (ProgExp A) ∅))
     )``
 
 (* mkdir, directly under root case *)
 val mkdir_root = ``
+    let A = Lit (Path a) in
     (SomeVarCell r
      *
-     VarCell path (ProgExp (Lit (Path Root) / Lit (Path a)))
+     VarCell path (ProgExp (Root / A))
      *
-     RootCell (DExp (Val c) ∧ (NameNotHere (ProgExp (Lit (Path a)))))
+     RootCell (DExp (Val c) ∧ (NameNotHere (ProgExp A)))
 
     ,Mkdir r path
 
     ,VarCell r (ProgExp (Lit (Int 0)))
      *
-     VarCell path (ProgExp (Lit (Path Root) / Lit (Path a)))
+     VarCell path (ProgExp (Root / A))
      *
-     RootCell (DExp (Val c) + (DDirectory (ProgExp (Lit (Path a))) ∅))
+     RootCell (DExp (Val c) + (DDirectory (ProgExp A) ∅))
     )``
 
 (* rename, dir, move, target not exists *)
 val rename_dir_move_not_exist = ``
+    let P = Lit (Path p) in
+    let D = Lit (Path d) in
+    let A = Lit (Path a) in
+    let P' = Lit (Path p') in
+    let B = Lit (Path b) in
     (SomeVarCell r
      *
-     VarCell old (ProgExp (Lit (Path p) / Lit (Path a)))
+     VarCell old (ProgExp (P / A))
      *
-     VarCell new (ProgExp (Lit (Path p') / Lit (Path d) / Lit (Path b))) (* Ramana: do we need p ≠ p'? *)
+     VarCell new (ProgExp (P' / D / B)) (* Ramana: do we need p ≠ p'? *)
      *
-     DirCell v (ProgExp (Lit (Path p)))
-       (DDirectory (ProgExp (Lit (Path a)))
+     DirCell v (ProgExp P)
+       (DDirectory (ProgExp A)
          (DExp (Val c) ∧ CompleteTree))
      *
-     DirCell w (ProgExp (Lit (Path p')))
-       (DDirectory (ProgExp (Lit (Path d)))
-         (Dexp (Val c') ∧ NameNotHere (ProgExp (Lit (Path b)))))
+     DirCell w (ProgExp P')
+       (DDirectory (ProgExp D)
+         (Dexp (Val c') ∧ NameNotHere (ProgExp B)))
 
     ,Rename r old new
 
     ,VarCell r (ProgExp (Lit (Int 0)))
      *
-     VarCell old (ProgExp (Lit (Path p) / (Lit (Path a))))
+     VarCell old (ProgExp (P / A))
      *
-     VarCell new (ProgExp (Lit (Path p') / Lit (Path d) / Lit (Path b)))
+     VarCell new (ProgExp (P' / D / B))
      *
-     DirCell v (ProgExp (Lit (Path p))) ∅
+     DirCell v (ProgExp P) ∅
      *
-     DirCell w (ProgExp (Lit (Path p')))
-      (DDirectory (ProgExp (Lit (Path d)))
+     DirCell w (ProgExp P')
+      (DDirectory (ProgExp D)
         (DExp (Val c')
          +
-       (DDirectory (ProgExp (Lit (Path b)))
-           (DExp (Val c))))) (* Ramana: why is CompleteTree not re-asserted? *)
+        (DDirectory (ProgExp B)
+          (DExp (Val c))))) (* Ramana: why is CompleteTree not re-asserted? *)
     )``
 
-(* rename, dir, move, targe not exists, under root *)
-val rename_dir_move_not_exist_root =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 5))))
-		      (Star (DirCell 6 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
-									 (DConjunction (DExp (Var 7))
-										       CompleteTree)))
-			    (RootCell (DConjunction (DExp (Var 8)) (NameNotThere (ProgExp (ProgVar 5))))))))),
-    (Rename 0 1 4),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 5))))
-		      (Star (DirCell 6 (ProgExp (ProgVar 2)) DEmpty)
-			    (RootCell (DConcat (DExp (Var 8)) (DDirectory (ProgExp (ProgVar 3))
-									  (DExp (Var 7)))))))))
+(* rename, dir, move, target not exists, under root *)
+val rename_dir_move_not_exist_root = ``
+    let P = Lit (Path p) in
+    let A = Lit (Path a) in
+    let B = Lit (Path b) in
+    (SomeVarCell r
+     *
+     VarCell old (ProgExp (P / A))
+     *
+     VarCell new (ProgExp (Root / B))
+     *
+     DirCell v (ProgExp P)
+       (DDirectory (ProgExp A)
+         (DExp (Val c) ∧ CompleteTree))
+     *
+     RootCell (DExp (Val c') ∧ (NameNotHere (ProgExp B)))
+
+    ,Rename r old new
+
+    ,VarCell r (ProgExp (Lit (Int 0)))
+     *
+     VarCell old (ProgExp (P / A))
+     *
+     VarCell new (ProgExp (Root / B))
+     *
+     DirCell v (ProgExp P) ∅
+     *
+     RootCell
+       (DExp (Val c')
+        +
+        DDirectory (ProgExp B)
+          (DExp (Val c)))
+    )``
 
 (* rename, dir, target not exists *)
 val rename_dir_not_exist =
