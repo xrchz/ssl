@@ -68,7 +68,6 @@ val _ = overload_on("RootVal",``Path RootPath``)
 val _ = Hol_datatype `
   prog_exp =
     Lit of prog_value
-  | Var of var
   | Equal of prog_exp => prog_exp
   | Less of prog_exp => prog_exp
   | And of prog_exp => prog_exp
@@ -85,56 +84,52 @@ val _ = overload_on("Root",``Lit RootVal``)
 val _ = overload_on("/",``Concat``)
 
 val (eval_prog_exp_rules,eval_prog_exp_ind,eval_prog_exp_cases) = Hol_reln`
-  (eval_prog_exp env (Lit l) l) ∧
+  (eval_prog_exp (Lit l) l) ∧
 
-  (FLOOKUP env var = SOME v
+  (eval_prog_exp e1 v1 ∧
+   eval_prog_exp e2 v2
    ⇒
-   eval_prog_exp env (Var var) v) ∧
+   eval_prog_exp (Equal e1 e2) (Bool(v1 = v2))) ∧
 
-  (eval_prog_exp env e1 v1 ∧
-   eval_prog_exp env e2 v2
+  (eval_prog_exp e1 (Int i1) ∧
+   eval_prog_exp e2 (Int i2)
    ⇒
-   eval_prog_exp env (Equal e1 e2) (Bool(v1 = v2))) ∧
+   eval_prog_exp (Less e1 e2) (Bool(i1 < i2))) ∧
 
-  (eval_prog_exp env e1 (Int i1) ∧
-   eval_prog_exp env e2 (Int i2)
+  (eval_prog_exp e1 (Bool b1) ∧
+   eval_prog_exp e2 (Bool b2)
    ⇒
-   eval_prog_exp env (Less e1 e2) (Bool(i1 < i2))) ∧
+   eval_prog_exp (And e1 e2) (Bool(b1 ∧ b2))) ∧
 
-  (eval_prog_exp env e1 (Bool b1) ∧
-   eval_prog_exp env e2 (Bool b2)
+  (eval_prog_exp e (Bool b)
    ⇒
-   eval_prog_exp env (And e1 e2) (Bool(b1 ∧ b2))) ∧
+   eval_prog_exp (Not e) (Bool(¬b))) ∧
 
-  (eval_prog_exp env e (Bool b)
+  (eval_prog_exp e1 (Int i1) ∧
+   eval_prog_exp e2 (Int i2)
    ⇒
-   eval_prog_exp env (Not e) (Bool(¬b))) ∧
+   eval_prog_exp (Plus e1 e2) (Int(i1 + i2))) ∧
 
-  (eval_prog_exp env e1 (Int i1) ∧
-   eval_prog_exp env e2 (Int i2)
+  (eval_prog_exp e1 (Int i1) ∧
+   eval_prog_exp e2 (Int i2)
    ⇒
-   eval_prog_exp env (Plus e1 e2) (Int(i1 + i2))) ∧
+   eval_prog_exp (Minus e1 e2) (Int(i1 + i2))) ∧
 
-  (eval_prog_exp env e1 (Int i1) ∧
-   eval_prog_exp env e2 (Int i2)
-   ⇒
-   eval_prog_exp env (Minus e1 e2) (Int(i1 + i2))) ∧
-
-  (eval_prog_exp env e1 (Path p1) ∧
-   eval_prog_exp env e2 (Path p2) ∧
+  (eval_prog_exp e1 (Path p1) ∧
+   eval_prog_exp e2 (Path p2) ∧
    path_concat p1 p2 = SOME p3
    ⇒
-   eval_prog_exp env (Concat e1 e2) (Path p3)) ∧
+   eval_prog_exp (Concat e1 e2) (Path p3)) ∧
 
-  (eval_prog_exp env e (Path p) ∧
+  (eval_prog_exp e (Path p) ∧
    path_base p = SOME p'
    ⇒
-   eval_prog_exp env (Base e) (Path p')) ∧
+   eval_prog_exp (Base e) (Path p')) ∧
 
-  (eval_prog_exp env e (Path p) ∧
+  (eval_prog_exp e (Path p) ∧
    path_dir p = SOME p'
    ⇒
-   eval_prog_exp env (Dir e) (Path p'))`
+   eval_prog_exp (Dir e) (Path p'))`
 
 val _ = Hol_datatype`directory =
     FileLink of name => inode
@@ -200,80 +195,80 @@ val values_same_type_def = Define`
     (∀x. x ∈ s ⇒ ∃v. x = AddressValue v)`
 
 val (eval_exp_rules,eval_exp_ind,eval_exp_cases) = Hol_reln`
-  (eval_prog_exp env pe pv
+  (eval_prog_exp pe pv
    ⇒
-   eval_exp env (ProgExp pe) {ProgValue pv}) ∧
+   eval_exp (ProgExp pe) {ProgValue pv}) ∧
 
   (values_same_type vs
    ⇒
-   eval_exp env (Vals vs) vs) ∧
+   eval_exp (Vals vs) vs) ∧
 
-  (eval_exp env (AddrVal a) {AddressValue a}) ∧
+  (eval_exp (AddrVal a) {AddressValue a}) ∧
 
-  (eval_exp env e1 vs1 ∧
-   eval_exp env e2 vs2 ∧
+  (eval_exp e1 vs1 ∧
+   eval_exp e2 vs2 ∧
    values_same_type (vs1 ∪ vs2)
    ⇒
-   eval_exp env (Union e1 e2) (vs1 ∪ vs2)) ∧
+   eval_exp (Union e1 e2) (vs1 ∪ vs2)) ∧
 
-  (eval_exp env e1 vs1 ∧
-   eval_exp env e2 vs2 ∧
+  (eval_exp e1 vs1 ∧
+   eval_exp e2 vs2 ∧
    values_same_type (vs1 ∪ vs2)
    ⇒
-   eval_exp env (Inter e1 e2) (vs1 ∩ vs2)) ∧
+   eval_exp (Inter e1 e2) (vs1 ∩ vs2)) ∧
 
-  (eval_exp env e1 vs1 ∧
-   eval_exp env e2 vs2
+  (eval_exp e1 vs1 ∧
+   eval_exp e2 vs2
    ⇒
-   eval_exp env (Diff e1 e2) (vs1 DIFF vs2))`
+   eval_exp (Diff e1 e2) (vs1 DIFF vs2))`
 
 val _ = type_abbrev("env",``:var |-> prog_value``)
 
-val _ = type_abbrev("dir_assertion",``:env -> forest set``)
+val _ = type_abbrev("dir_assertion",``:forest set``)
 
-val DEmpty_def = Define`DEmpty env = { [] }`
+val DEmpty_def = Define`DEmpty = { [] }`
 val _ = overload_on("∅",``DEmpty``)
 
 val DFileLink_def = Define`
-  DFileLink e1 e2 env = { [FileLink n b] |
-    eval_exp env e1 {ProgValue (NameVal n)} ∧
-    eval_exp env e2 {ProgValue (Inode b)}}`
+  DFileLink e1 e2 = { [FileLink n b] |
+    eval_exp e1 {ProgValue (NameVal n)} ∧
+    eval_exp e2 {ProgValue (Inode b)}}`
 
 val DDirectory_def = Define`
-  DDirectory e (da:dir_assertion) env = { [Directory n ds] |
-    eval_exp env e {ProgValue (NameVal n)} ∧
-    da env ds }`
+  DDirectory e (da:dir_assertion) = { [Directory n ds] |
+    eval_exp e {ProgValue (NameVal n)} ∧
+    ds ∈ da }`
 
 val DExp_def = Define`
-  DExp exp env = { ds | ∃vs. eval_exp env exp vs ∧ (ForestValue ds) ∈ vs }`
+  DExp exp = { ds | ∃vs. eval_exp exp vs ∧ (ForestValue ds) ∈ vs }`
 
 val DConcat_def = Define`
-  DConcat (da1:dir_assertion) (da2:dir_assertion) env =
-    { l1++l2 | l1 ∈ da1 env ∧ l2 ∈ da2 env }`
+  DConcat (da1:dir_assertion) (da2:dir_assertion) =
+    { l1++l2 | l1 ∈ da1 ∧ l2 ∈ da2 }`
 val _ = overload_on("+",``DConcat``)
 
 val DContextApplication_def = Define`
-  DContextApplication (da1:dir_assertion) addr (da2:dir_assertion) env =
-    { subst_forest addr f2 f1 | f1 ∈ da1 env ∧ f2 ∈ da2 env }`
+  DContextApplication (da1:dir_assertion) addr (da2:dir_assertion) =
+    { subst_forest addr f2 f1 | f1 ∈ da1 ∧ f2 ∈ da2 }`
 
 val DPathResolution_def = Define`
   DPathResolution exp env = { ds |
     ∃p ps a.
-    eval_exp env exp {PathValue (RelPath p ps,a)} ∧
+    eval_exp exp {PathValue (RelPath p ps,a)} ∧
     EXISTS IS_SOME (MAP (resolve (p::ps) a) ds) }`
 
 val DLift_def = Define`
-  DLift f (da1:dir_assertion) da2 env = { ds | f (ds ∈ da1 env) (ds ∈ da2 env) }`
+  DLift f (da1:dir_assertion) da2 = { ds | f (ds ∈ da1) (ds ∈ da2) }`
 val _ = overload_on("/\\",``DLift $/\``)
 val _ = overload_on("\\/",``DLift $\/``)
-val _ = overload_on("F",``(K {}):dir_assertion``)
-val _ = overload_on("T",``(K UNIV):dir_assertion``)
+val _ = overload_on("F",``({}):dir_assertion``)
+val _ = overload_on("T",``(UNIV):dir_assertion``)
 val _ = overload_on("==>",``DLift $==>``)
 val _ = overload_on("<=>",``DLift $<=>``)
 val _ = overload_on("~",``λda:dir_assertion. da ⇒ F``)
 
 val DExists_def = Define`
-  DExists (P : α -> dir_assertion) env = { ds | ∃v. ds ∈ (P v) env }`
+  DExists (P : α -> dir_assertion) = { ds | ∃v. ds ∈ (P v) }`
 val _ = overload_on("?",``DExists``)
 val _ = overload_on("!",``λP : α -> dir_assertion. ¬∃v. ¬(P v)``)
 
@@ -308,36 +303,36 @@ val DirCell_def = Define`
   DirCell addr path_exp da = { state |
     ∃ap ds.
     FLOOKUP state.fs.address_env addr = SOME (ap,ds) ∧
-    eval_exp state.env path_exp {PathValue ap} ∧
-    ds ∈ da state.env }`
+    eval_exp path_exp {PathValue ap} ∧
+    ds ∈ da }`
 
 val RootCell_def = Define`
   RootCell da = { state |
     ∃ds. state.fs.root = SOME ds ∧
-    ds ∈ da state.env }`
+    ds ∈ da }`
 
 val FileCell_def = Define`
   FileCell inode_exp bytes_exp env = { state |
    ∃inode bytes.
    FLOOKUP state.fs.inode_env inode = SOME bytes ∧
-   eval_exp state.env inode_exp {ProgValue (Inode inode)} ∧
-   eval_exp state.env bytes_exp {ProgValue (Bytes bytes)} }`
+   eval_exp inode_exp {ProgValue (Inode inode)} ∧
+   eval_exp bytes_exp {ProgValue (Bytes bytes)} }`
 
 val FileDescCell_def = Define`
   FileDescCell fd_exp inode_exp offset_exp = { state |
     ∃fd inode offset.
     0 ≤ offset ∧
     FLOOKUP state.heap.filedesc_env fd = SOME (inode, Num offset) ∧
-    eval_exp state.env fd_exp {ProgValue (Ofaddr fd)} ∧
-    eval_exp state.env inode_exp {ProgValue (Inode inode)} ∧
-    eval_exp state.env offset_exp {ProgValue (Int offset)} }`
+    eval_exp fd_exp {ProgValue (Ofaddr fd)} ∧
+    eval_exp inode_exp {ProgValue (Inode inode)} ∧
+    eval_exp offset_exp {ProgValue (Int offset)} }`
 
 val DirStreamCell_def = Define`
   DirStreamCell ds_exp names_exp = { state |
     ∃dirstr ns.
     FLOOKUP state.heap.dirstream_env dirstr = SOME { n | ProgValue(NameVal n) ∈ ns } ∧
-    eval_exp state.env ds_exp {ProgValue (Dirstream dirstr)} ∧
-    eval_exp state.env names_exp ns ∧
+    eval_exp ds_exp {ProgValue (Dirstream dirstr)} ∧
+    eval_exp names_exp ns ∧
     (∀v. v ∈ ns ⇒ ∃n. v = ProgValue(NameVal n)) }`
 
 val HeapCell_def = Define`
@@ -345,8 +340,8 @@ val HeapCell_def = Define`
     ∃addr v.
     0 ≤ addr ∧
     FLOOKUP state.heap.heap_env (Num addr) = SOME v ∧
-    eval_exp state.env addr_exp {ProgValue (Int addr)} ∧
-    eval_exp state.env val_exp {ProgValue (Int v)} }`
+    eval_exp addr_exp {ProgValue (Int addr)} ∧
+    eval_exp val_exp {ProgValue (Int v)} }`
 
 (* Ramana: Why can't we just use ExpCell (Var v) for this? *)
 (* Gian: There is a subtle difference in their use. VarCell is used as a spatial
@@ -360,16 +355,10 @@ val VarCell_def = Define`
   VarCell var val_exp = { state |
     ∃v.
     FLOOKUP state.env var = SOME v ∧
-    eval_exp state.env val_exp {ProgValue v} }`
-
-val ExpCell_def = Define`
-  ExpCell prog_exp exp = { state |
-    ∃thevalue.
-    eval_prog_exp state.env prog_exp thevalue ∧
-    eval_exp state.env exp {ProgValue thevalue} }`
+    eval_exp val_exp {ProgValue v} }`
 
 val Exp_def = Define`
-  Exp exp = { state | state | eval_exp state.env exp {ProgValue (Bool T)} }`
+  Exp exp = { state | state | eval_exp exp {ProgValue (Bool T)} }`
 
 val root_compose_def = Define`
   (root_compose NONE     NONE     x ⇔ (x = NONE)  ) ∧
