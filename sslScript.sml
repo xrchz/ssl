@@ -349,6 +349,13 @@ val HeapCell_def = Define`
     eval_exp state.env val_exp {ProgValue (Int v)} }`
 
 (* Ramana: Why can't we just use ExpCell (Var v) for this? *)
+(* Gian: There is a subtle difference in their use. VarCell is used as a spatial
+   formula whereas ExpCell is not. Using ExpCell to describe the value of a
+   program expression requires the use of VarCells for every variable occurring
+   within the program expression. Single variables can be always treated disjointly,
+   whereas program expressions may have an overlap in the variables they use.
+   That being said, in this work I think it is simpler to treat command arugments as simple variables,
+   since we are not fully formalising the programming language anyway. *)
 val VarCell_def = Define`
   VarCell var val_exp = { state |
     ∃v.
@@ -820,5 +827,33 @@ val _ = dir ∉ (DContextApplication T 42 (DDir (ProgExp (Name "G")) ∅)) FEMPT
 val _ = dir ∈ (DContextApplication T 42 (DFileLink (ProgExp (Name "g")) (ProgExp (Lit (Inode 42))))) FEMPTY
 val _ = dir ∈ (DContextApplication (DDirectory (ProgExp (Name "a")) (Address 42)) 42 T) FEMPTY
 val _ = dir ∉ (DContextApplication (DDirectory (ProgExp (Name "a")) DEmpty) 42 T) FEMPTY
+
+(* Gian: we also need: 
+   - sibling uniqueness in directory forests
+   - uniqueness of abstract addresses *)
+
+(* instrumented directory heap cell assertions *)
+
+let state_cons env =
+  { <| fs := <| root := NONE; address_env := env; inode_env := FEMPTY |>
+      ; heap := <| filedesc_env := FEMPTY; dirstream_env := FEMPTY; heap_env := FEMPTY |>
+      ; env := FEMPTY
+    |> }
+
+val _ = 
+  let state = address_env_cons { 42 |-> (AbsPath ["foo"])  [] }
+  state ∉ DirP 41 (Lit (Path (AbsPath["foo"]))) ∅
+
+val _ = 
+  let state = address_env_cons { 42 |-> (AbsPath ["foo"])  [] }
+  state ∈ DirP 42 (Lit (Path (AbsPath["foo"]))) ∅
+
+(* star on non-disjoint addresses is false *)
+val _ =
+    { } ∈ address_env_cons { 42 |-> (AbsPath ["foo"])  []; 42 |-> (AbsPath ["foo"])  [] }
+
+val _ =
+  let state = address_env_cons { 42 |-> (AbsPath ["foo"])  dir }
+  state ∈ DirP 41 (Lit (Path (AbsPath["foo"]))) (DDirectory (ProgExp (Name "a")) (Address 42)) 42 T)
 
 val _ = export_theory()
