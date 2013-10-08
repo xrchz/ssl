@@ -785,34 +785,83 @@ val rename_same = ``
    of states satisfied by the assertion *)
 
 (* empty forest satisfies dirempty *)
-val _ = [] ∈ (∅ FEMPTY)
+val t1 = prove(``([]:forest list) ∈ ∅``, rw[DEmpty_def])
 
 (* non empty forest does not satisfy ∅ *)
-val _ = [FileLink "foo" 42] ∉ (∅ FEMPTY)
+val t2 = prove(``FileLink name inode ∉ ∅``, rw[DEmpty_def])
 
 (* nothing satisfies false; anything satisfies true *)
-val _ = [FileLink "foo" 42] ∉ F
-val _ = [FileLink "foo" 42] ∈ T
+val t3 = prove(``[FileLink name inode] ∉ F``, rw[DLift_def])
+val t4 = prove(``[FileLink name inode] ∈ T``, rw[DLift_def])
 
 (* directory does not satisfy file and vice versa *)
-val _ = [Directory "foo" [FileLink "foo" 42]] ∈ 
-          (DDir (ProgExp (Name "foo")) (DFileLink (ProgExp (Name "foo")) (ProgExp (Lit (Inode 42))))) FEMPTY
-val _ = [Directory "foo" [FileLink "foo" 42]] ∉ (DFileLink (ProgExp (Name "foo")) (ProgExp (Lit (Inode 42)))) FEmpty
-val _ = [FileLink "foo" 42] ∈ (DFileLink (ProgExp (Name "foo")) (ProgExp (Lit (Inode 42))))
-val _ = [FileLink "foo" 42] ∉ (DDirectory (ProgExp (Name "foo")) T)
+val t5 = prove(
+  ``[Directory dn[FileLink fn x]] ∈
+          (DDir (Name dn) (Name fn :> Lit (Inode x)))``,
+  rw[DDirectory_def] >- (
+    rw[Once eval_exp_cases] >>
+    rw[Once eval_prog_exp_cases] ) >>
+  rw[DFileLink_def] >>
+  rw[Once eval_exp_cases] >>
+  rw[Once eval_prog_exp_cases] )
+
+val t6 = prove(
+  ``[Directory dn [FileLink fn n]] ∉
+      (DFileLink (ProgExp (Name dn)) (ProgExp (Lit (Inode n))))``,
+  rw[DFileLink_def])
+
+val t7 = prove(
+  ``[FileLink fn n] ∈ (DFileLink (ProgExp (Name fn)) (ProgExp (Lit (Inode n))))``,
+  rw[DFileLink_def] >>
+  rw[Once eval_exp_cases] >>
+  rw[Once eval_prog_exp_cases])
+
+val t8 = prove(
+  ``[FileLink "foo" 42] ∉ (DDirectory (ProgExp (Name "foo")) T)``,
+  rw[DDirectory_def])
 
 (* directory contents with true *)
-let dir = [Directory "a" [Directory "b" []; Directory "c" [FileLink "d" 42; Directory "e" []; FileLink "g" 42]; Directory "d" [FileLink "f" 4242]]]
-val _ = dir ∈ (DDir (ProgExp (Name "a")) T) FEMPTY
+val dir = ``[Directory "a" [Directory "b" []; Directory "c" [FileLink "d" 42; Directory "e" []; FileLink "g" 42]; Directory "d" [FileLink "f" 4242]]]``
+val t9 = prove(
+  ``^dir ∈ (DDir (Name "a") T)``,
+  rw[DDirectory_def] >>
+  rw[Once eval_exp_cases] >>
+  rw[Once eval_prog_exp_cases] )
+
 val _ = dir ∉ (DDir (ProgExp (Name "a")) DDir (ProgExp (Name "b")) ∅) FEMPTY
 val _ = dir ∉ (DDir (ProgExp (Name "a")) DDir (ProgExp (Name "b")) T) FEMPTY
 val _ = dir ∈ (DDir (ProgExp (Name "a")) (DDir (ProgExp (Name "b")) T) + T) FEMPTY
 (* + is commutative *)
 val _ = dir ∈ (DDir (ProgExp (Name "a")) (DDir (ProgExp (Name "c")) T) + T) FEMPTY
 
+(*
+val subst_forest_MAP = store_thm("subst_forest_MAP",
+  ``∀ls a vs. 
+
+val resolve_lemma = prove(
+  ``(∀p a d x. resolve p a d = SOME x ⇒
+      case a of
+      | NONE => ∃c a'. d = subst_forest a' x c
+      | SOME a' => x = a (* ∧ d = subst_forest a' (Address a') d *))
+
 (* context application *)
 (* Gian: address is a type alias to :num *)
-val _ = dir ∉ (DContextApplication T 42 (DDir (ProgExp (Name "G")) ∅)) FEMPTY
+val t14 = prove(
+  ``^dir ∉ (DContextApplication T 42 (DDir (Name "G") ∅))``,
+  rw[DContextApplication_def] >>
+  rw[DDirectory_def] >>
+  rw[Once eval_exp_cases] >>
+  rw[Once eval_prog_exp_cases] >>
+  rw[DEmpty_def] >>
+  Cases_on`f2 = [Directory "G" []]` >> simp[] >>
+  spose_not_then strip_assume_tac >> fs[] >>
+  fs[listTheory.EXISTS_MEM] >> rw[] >>
+  Cases_on`resolve p (SOME 42) e`>>fs[] >> rw[] >>
+
+  cheat )
+  subst_def
+*)
+
 val _ = dir ∈ (DContextApplication T 42 (DFileLink (ProgExp (Name "g")) (ProgExp (Lit (Inode 42))))) FEMPTY
 val _ = dir ∈ (DContextApplication (DDirectory (ProgExp (Name "a")) (Address 42)) 42 T) FEMPTY
 val _ = dir ∉ (DContextApplication (DDirectory (ProgExp (Name "a")) DEmpty) 42 T) FEMPTY
