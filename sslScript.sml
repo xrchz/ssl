@@ -416,6 +416,7 @@ val CompleteTree_def = Define`
   CompleteTree = ¬(∃x. (Somewhere (DExp (AddrVal x))))`
 
 (* Ramana: Do you require some variable to bind v in the program environment? *)
+(* Gian: No, here v is a logical variable *)
 val Entry_def = Define`
   Entry name_exp =
     ((DDirectory name_exp T) ∨
@@ -514,7 +515,8 @@ val rename_dir_move_not_exist = ``
 
     (SomeVarCell r
      * VarP old (P / A)
-     * VarP new (P' / D / B) (* Ramana: do we need p ≠ p'? *)
+     * VarP new (P' / D / B) (* Ramana: do we need p ≠ p'? *) 
+     (* Gian: No, that is a perfectly valid case: move the source dir to under some sibling. *)
      * DirP v P (DDir A (C ∧ CompleteTree))
      * DirP w P' (DDir D (C' ∧ Safe B))
 
@@ -526,6 +528,7 @@ val rename_dir_move_not_exist = ``
      * DirP v P ∅
      * DirP w P' (DDir D (C' + (DDir B C)))
       (* Ramana: why is CompleteTree not re-asserted? *)
+      (* Gian: it does not matter. C is invariant, so it's still complete in the postocondition *)
     )``
 
 (* rename, dir, move, target not exists, under root *)
@@ -777,5 +780,45 @@ val rename_same = ``
      * VarP new (P / A)
      * DirP v P da
     )``
+
+(* Assertion sanity checks *)
+(* Directory assertion checks *)
+
+(* Gian: Directory assertions have an envirnment,
+   so I need to apply some environment to get the set
+   of states satisfied by the assertion *)
+
+(* empty forest satisfies dirempty *)
+val _ = [] ∈ (∅ FEMPTY)
+
+(* non empty forest does not satisfy ∅ *)
+val _ = [FileLink "foo" 42] ∉ (∅ FEMPTY)
+
+(* nothing satisfies false; anything satisfies true *)
+val _ = [FileLink "foo" 42] ∉ F
+val _ = [FileLink "foo" 42] ∈ T
+
+(* directory does not satisfy file and vice versa *)
+val _ = [Directory "foo" [FileLink "foo" 42]] ∈ 
+          (DDir (ProgExp (Name "foo")) (DFileLink (ProgExp (Name "foo")) (ProgExp (Lit (Inode 42))))) FEMPTY
+val _ = [Directory "foo" [FileLink "foo" 42]] ∉ (DFileLink (ProgExp (Name "foo")) (ProgExp (Lit (Inode 42)))) FEmpty
+val _ = [FileLink "foo" 42] ∈ (DFileLink (ProgExp (Name "foo")) (ProgExp (Lit (Inode 42))))
+val _ = [FileLink "foo" 42] ∉ (DDirectory (ProgExp (Name "foo")) T)
+
+(* directory contents with true *)
+let dir = [Directory "a" [Directory "b" []; Directory "c" [FileLink "d" 42; Directory "e" []; FileLink "g" 42]; Directory "d" [FileLink "f" 4242]]]
+val _ = dir ∈ (DDir (ProgExp (Name "a")) T) FEMPTY
+val _ = dir ∉ (DDir (ProgExp (Name "a")) DDir (ProgExp (Name "b")) ∅) FEMPTY
+val _ = dir ∉ (DDir (ProgExp (Name "a")) DDir (ProgExp (Name "b")) T) FEMPTY
+val _ = dir ∈ (DDir (ProgExp (Name "a")) (DDir (ProgExp (Name "b")) T) + T) FEMPTY
+(* + is commutative *)
+val _ = dir ∈ (DDir (ProgExp (Name "a")) (DDir (ProgExp (Name "c")) T) + T) FEMPTY
+
+(* context application *)
+(* Gian: address is a type alias to :num *)
+val _ = dir ∉ (DContextApplication T 42 (DDir (ProgExp (Name "G")) ∅)) FEMPTY
+val _ = dir ∈ (DContextApplication T 42 (DFileLink (ProgExp (Name "g")) (ProgExp (Lit (Inode 42))))) FEMPTY
+val _ = dir ∈ (DContextApplication (DDirectory (ProgExp (Name "a")) (Address 42)) 42 T) FEMPTY
+val _ = dir ∉ (DContextApplication (DDirectory (ProgExp (Name "a")) DEmpty) 42 T) FEMPTY
 
 val _ = export_theory()
