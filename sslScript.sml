@@ -249,7 +249,7 @@ val _ = overload_on("+",``DConcat``)
 
 val DContextApplication_def = Define`
   DContextApplication (da1:dir_assertion) addr (da2:dir_assertion) =
-    { subst_forest addr f2 f1 | f1 ∈ da1 ∧ f2 ∈ da2 }`
+    { subst_forest addr f2 f1 | (f2,f1) | f1 ∈ da1 ∧ f2 ∈ da2 ∧ (∃p. EXISTS (λd. IS_SOME (resolve p (SOME addr) d)) f1) }`
 
 val DPathResolution_def = Define`
   DPathResolution exp env = { ds |
