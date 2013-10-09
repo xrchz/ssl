@@ -867,18 +867,57 @@ val t13 = prove(
   match_mp_tac CONS_PERM >>
   simp[])
 
-(*
 val subst_forest_MAP = store_thm("subst_forest_MAP",
-  ``∀ls a vs. 
+  ``∀ls a vs. subst_forest a vs ls = FLAT (MAP (subst a vs) ls)``,
+  Induct >> simp[subst_def])
 
-val resolve_lemma = prove(
-  ``(∀p a d x. resolve p a d = SOME x ⇒
-      case a of
-      | NONE => ∃c a'. d = subst_forest a' x c
-      | SOME a' => x = a (* ∧ d = subst_forest a' (Address a') d *))
+val FLAT_EQ_NIL = store_thm("FLAT_EQ_NIL",
+  ``∀ls. (FLAT ls = []) = EVERY ($= []) ls``,
+  Induct THEN SRW_TAC[][EQ_IMP_THM])
+
+val FLAT_EQ_SING = store_thm("FLAT_EQ_SING",
+  ``∀ls x. (FLAT ls = [x]) ⇔ ∃l1 l2. (ls = l1 ++ [[x]] ++ l2) ∧ EVERY ($= []) l1 ∧ EVERY ($= []) l2``,
+  Induct >> simp[] >>
+  Cases >> simp[] >- (
+    rw[EQ_IMP_THM] >- (
+      qexists_tac`[]::l1` >>
+      simp[] ) >>
+    Cases_on`l1` >- fs[] >>
+    qexists_tac`t` >>
+    ntac 2 (pop_assum mp_tac) >>
+    simp[] >> rw[] >> fs[] ) >>
+  rw[EQ_IMP_THM,FLAT_EQ_NIL] >- (
+    qexists_tac`[]` >>
+    simp[] ) >>
+  ntac 2 (pop_assum mp_tac) >>
+  Cases_on`l1`>> simp[] >> rw[] >>
+  fs[] )
+
+val subst_not_nil = store_thm("subst_not_nil",
+  ``∀ls a vs. vs ≠ [] ⇒ subst a vs ls ≠ []``,
+  Induct >> simp[subst_def] >> rw[])
+
+val subst_sing_or_vs = store_thm("subst_sing_or_vs",
+  ``∀ls a vs. (subst a vs ls = vs) ∨ ∃x. subst a vs ls = [x]``,
+  Induct >> simp[subst_def] >> rw[])
+
+val resolve_SOME_SOME = store_thm("resolve_SOME_SOME",
+   ``(∀p sa d a x. resolve p sa d = SOME x ∧ sa = SOME a ⇒ x = Address a) ∧
+     (∀p sa ds a x. resolve_list p sa ds = SOME x ∧ sa = SOME a ⇒ x = Address a)``,
+   ho_match_mp_tac(theorem"resolve_ind") >>
+   simp[resolve_def] >> rw[] >>
+   BasicProvers.EVERY_CASE_TAC >> fs[])
+
+val resolve_nil_SOME = store_thm("resolve_nil_SOME",
+  ``∀d a x. resolve [] a d = SOME x ⇒ ∃y. a = SOME y ∧ x = Address y ∧ d = Address y``,
+  Induct >> simp[resolve_def] >>
+  gen_tac >> Cases >> simp[resolve_def])
+
+val subst_forest_nil = store_thm("subst_forest_nil",
+  ``∀ls a vs. vs ≠ [] ⇒ (subst_forest a vs ls = [] ⇔ (ls = []))``,
+  Induct >> simp[subst_def] >> metis_tac[subst_not_nil])
 
 (* context application *)
-(* Gian: address is a type alias to :num *)
 val t14 = prove(
   ``^dir ∉ (DContextApplication T 42 (DDir (Name "G") ∅))``,
   rw[DContextApplication_def] >>
@@ -886,14 +925,130 @@ val t14 = prove(
   rw[Once eval_exp_cases] >>
   rw[Once eval_prog_exp_cases] >>
   rw[DEmpty_def] >>
-  Cases_on`f2 = [Directory "G" []]` >> simp[] >>
+  Cases_on`f2 = [Directory "G" []]` >> simp[] >> rw[] >>
   spose_not_then strip_assume_tac >> fs[] >>
   fs[listTheory.EXISTS_MEM] >> rw[] >>
   Cases_on`resolve p (SOME 42) e`>>fs[] >> rw[] >>
-
-  cheat )
-  subst_def
-*)
+  fs[subst_forest_MAP] >>
+  qmatch_assum_abbrev_tac`[z] = FLAT y` >>
+  qpat_assum`[z] = FLAT y`(mp_tac o SYM) >>
+  simp[FLAT_EQ_SING] >> rw[] >>
+  spose_not_then strip_assume_tac >>
+  qunabbrev_tac`y` >>
+  fs[EVERY_MEM] >>
+  reverse(Cases_on`l1`) >- (
+    fs[] >>
+    `h = []` by metis_tac[] >>
+    Cases_on`f1`>>fs[] >>
+    metis_tac[subst_not_nil,NOT_NIL_CONS] ) >>
+  fs[] >> rw[] >>
+  qpat_assum`MEM e f1`mp_tac >>
+  Cases_on`f1`>>fs[]>>
+  reverse(Cases_on`t`) >- (
+    fs[] >>
+    Cases_on`l2`>>fs[]>>
+    metis_tac[subst_not_nil,NOT_NIL_CONS] ) >>
+  fs[] >> rw[] >> fs[] >> rw[] >>
+  spose_not_then strip_assume_tac >> rw[] >>
+  imp_res_tac resolve_SOME_SOME >> fs[] >> rw[] >>
+  Cases_on`p`>- (
+    imp_res_tac resolve_nil_SOME >>
+    fs[subst_def] >> fs[Abbr`z`] ) >>
+  Cases_on`e`>>fs[resolve_def] >>
+  Cases_on`h=s`>>fs[]>>rw[]>>
+  fs[subst_def]>>
+  fs[Abbr`z`]>>
+  Cases_on`l`>>fs[resolve_def]>>
+  rw[] >>
+  fs[subst_def] >>
+  qmatch_assum_abbrev_tac`subst a vs x ++ ls = z` >>
+  Cases_on`subst a vs x = vs` >- ( fs[Abbr`vs`] ) >>
+  `∃y. subst a vs x = [y]` by metis_tac[subst_sing_or_vs] >>
+  fs[Abbr`ls`,Abbr`z`] >>
+  reverse BasicProvers.EVERY_CASE_TAC >- (
+    imp_res_tac resolve_SOME_SOME >> fs[] >> rw[] >>
+    qpat_assum`Abbrev(x=Z)`kall_tac >>
+    reverse(Cases_on`x`>>fs[subst_def,resolve_def])>-(
+      Cases_on`a=n`>>fs[Abbr`vs`] ) >>
+    `l = []` by metis_tac[subst_forest_nil,NOT_NIL_CONS] >>
+    Cases_on`t`>>fs[resolve_def] ) >>
+  Cases_on`t'`>>fs[subst_def] >>
+  Cases_on`subst a vs h = vs` >- ( fs[Abbr`vs`] ) >>
+  `∃q. subst a vs h = [q]` by metis_tac[subst_sing_or_vs] >>
+  fs[] >>
+  fs[resolve_def]>>
+  Cases_on`t''`>>fs[subst_def]>>
+  Cases_on`subst a vs h'' = vs` >- ( fs[Abbr`vs`] ) >>
+  `∃r. subst a vs h'' = [r]` by metis_tac[subst_sing_or_vs] >>
+  fs[] >> rw[] >>
+  fs[Abbr`vs`] >> rw[] >>
+  reverse(Cases_on`h`>>fs[subst_def])>-(
+    Cases_on`a=n`>>fs[]) >>
+  fs[resolve_def]>>
+  qpat_assum`X = SOME Y`mp_tac >>
+  reverse BasicProvers.CASE_TAC >- (
+    imp_res_tac resolve_SOME_SOME >>
+    fs[] >>
+    reverse(Cases_on`h''`>>fs[subst_def])>-(
+      Cases_on`a=n`>>fs[]) >>
+    Cases_on`l'`>>fs[subst_def]>>
+    qabbrev_tac`vs = [Directory "G" []]` >>
+    Cases_on`subst a vs h = vs` >- fs[Abbr`vs`]>>
+    `∃z. subst a vs h = [z]` by metis_tac[subst_sing_or_vs] >>
+    fs[]>>
+    Cases_on`t`>>fs[resolve_def]>>
+    Cases_on`h''=s'`>>fs[]>>
+    `t'' = []` by metis_tac[subst_forest_nil,NOT_NIL_CONS]>>
+    fs[resolve_def]>>
+    BasicProvers.EVERY_CASE_TAC>>fs[]>>rw[]>>
+    reverse(Cases_on`h`>>fs[subst_def])>-(
+      Cases_on`a=n`>>fs[]) >>
+    rw[]>>Cases_on`t'''`>>fs[resolve_def]) >>
+  rw[] >>
+  reverse(Cases_on`h''`>>fs[subst_def])>-(
+    Cases_on`a=n`>>fs[])>>
+  Cases_on`l'`>>fs[subst_def]>>
+  qabbrev_tac`vs = [Directory "G" []]` >>
+  Cases_on`subst a vs h = vs` >- fs[Abbr`vs`]>>
+  `∃z. subst a vs h = [z]` by metis_tac[subst_sing_or_vs] >>
+  fs[]>>
+  `t'' = []` by metis_tac[subst_forest_nil,NOT_NIL_CONS]>>
+  rw[]>>
+  reverse(Cases_on`h`>>fs[subst_def])>-(
+    Cases_on`a=n`>>fs[]) >>
+  rw[]>>
+  `t' = []` by metis_tac[subst_forest_nil,NOT_NIL_CONS]>>
+  rw[resolve_def]>>
+  BasicProvers.CASE_TAC>>
+  Cases_on`t`>>fs[resolve_def]>>
+  Cases_on`h="c"`>>fs[]>>
+  Cases_on`l`>>fs[subst_def]>>
+  fs[resolve_def]>>
+  Cases_on`subst a vs h'' = vs` >- fs[Abbr`vs`]>>
+  `∃z. subst a vs h'' = [z]` by metis_tac[subst_sing_or_vs] >>
+  fs[]>>
+  Cases_on`t`>>fs[resolve_def,subst_def]>>
+  Cases_on`subst a vs h''' = vs` >- fs[Abbr`vs`]>>
+  `∃z. subst a vs h''' = [z]` by metis_tac[subst_sing_or_vs] >>
+  fs[]>>
+  Cases_on`t''`>>fs[resolve_def,subst_def]>>
+  Cases_on`subst a vs h'''' = vs` >- fs[Abbr`vs`]>>
+  `∃z. subst a vs h'''' = [z]` by metis_tac[subst_sing_or_vs] >>
+  fs[]>>
+  `t=[]` by metis_tac[subst_forest_nil,NOT_NIL_CONS]>>
+  fs[resolve_def]>> rw[] >>
+  reverse(Cases_on`h''`>>fs[subst_def]) >- (
+    Cases_on`a=n`>>fs[]) >>
+  rw[]>>
+  reverse(Cases_on`h'''`>>fs[subst_def]) >- (
+    Cases_on`a=n`>>fs[]) >>
+  rw[]>>
+  reverse(Cases_on`h''''`>>fs[subst_def]) >- (
+    Cases_on`a=n`>>fs[]) >>
+  rw[]>>
+  `l=[]` by metis_tac[subst_forest_nil,NOT_NIL_CONS]>>
+  rw[]>>fs[]>>
+  Cases_on`t'`>>fs[resolve_def])
 
 val _ = dir ∈ (DContextApplication T 42 (DFileLink (ProgExp (Name "g")) (ProgExp (Lit (Inode 42))))) FEMPTY
 val _ = dir ∈ (DContextApplication (DDirectory (ProgExp (Name "a")) (Address 42)) 42 T) FEMPTY
