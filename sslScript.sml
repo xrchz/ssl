@@ -13,13 +13,15 @@ val _ = type_abbrev("ofaddr", ``:num``)
 val _ = type_abbrev("dirstream", ``:num``)
 val _ = type_abbrev("address", ``:num``)
 val _ = type_abbrev("var", ``:num``)
+val _ = type_abbrev("num", ``:num``)
 
 val _ = Hol_datatype `path =
     EmptyPath
   | AbsPath of relpath
   | RelPath of name => relpath`
 
-val _ = overload_on("Name",``λn. RelPath n []``)
+val _ = overload_on("NamePath",``λn. RelPath n []``)
+val _ = overload_on("RootPath",``AbsPath []``)
 
 val path_concat_def = Define`
   (path_concat EmptyPath p = SOME p) ∧
@@ -42,27 +44,30 @@ val path_dir_def = Define`
   (path_dir (RelPath h []) = SOME (RelPath h [])) ∧
   (path_dir (RelPath h p) = SOME (RelPath h (FRONT p)))`
 
-val _ = type_abbrev("abspath", ``:path # address option``)
+val _ = type_abbrev("abstract_path", ``:path # address option``)
 
 val _ = Hol_datatype `ftype =
   TFile | TDirectory`
 
 val _ = type_abbrev("bytes",``:char list``)
+val _ = type_abbrev("string",``:char list``)
 
 val _ = Hol_datatype `prog_value =
     Int of int
   | Bool of bool
   | Path of path
-  | Byte of bytes
+  | Bytes of bytes
   | Inode of inode
   | Ofaddr of ofaddr
   | Dirstream of dirstream
   | FType of ftype`
 
+val _ = overload_on("NameVal",``λn. Path (NamePath n)``)
+val _ = overload_on("RootVal",``Path RootPath``)
+
 val _ = Hol_datatype `
   prog_exp =
     Lit of prog_value
-  | ProgVar of var
   | Equal of prog_exp => prog_exp
   | Less of prog_exp => prog_exp
   | And of prog_exp => prog_exp
@@ -73,57 +78,58 @@ val _ = Hol_datatype `
   | Base of prog_exp
   | Dir of prog_exp`
 
+val _ = overload_on("Name",``λn. Lit (NameVal n)``)
+val _ = overload_on("Root",``Lit RootVal``)
+
+val _ = overload_on("/",``Concat``)
+
 val (eval_prog_exp_rules,eval_prog_exp_ind,eval_prog_exp_cases) = Hol_reln`
-  (eval_prog_exp env (Lit l) l) ∧
+  (eval_prog_exp (Lit l) l) ∧
 
-  (FLOOKUP env var = SOME v
+  (eval_prog_exp e1 v1 ∧
+   eval_prog_exp e2 v2
    ⇒
-   eval_prog_exp env (ProgVar var) v) ∧
+   eval_prog_exp (Equal e1 e2) (Bool(v1 = v2))) ∧
 
-  (eval_prog_exp env e1 v1 ∧
-   eval_prog_exp env e2 v2
+  (eval_prog_exp e1 (Int i1) ∧
+   eval_prog_exp e2 (Int i2)
    ⇒
-   eval_prog_exp env (Equal e1 e2) (Bool(v1 = v2))) ∧
+   eval_prog_exp (Less e1 e2) (Bool(i1 < i2))) ∧
 
-  (eval_prog_exp env e1 (Int i1) ∧
-   eval_prog_exp env e2 (Int i2)
+  (eval_prog_exp e1 (Bool b1) ∧
+   eval_prog_exp e2 (Bool b2)
    ⇒
-   eval_prog_exp env (Less e1 e2) (Bool(i1 < i2))) ∧
+   eval_prog_exp (And e1 e2) (Bool(b1 ∧ b2))) ∧
 
-  (eval_prog_exp env e1 (Bool b1) ∧
-   eval_prog_exp env e2 (Bool b2)
+  (eval_prog_exp e (Bool b)
    ⇒
-   eval_prog_exp env (And e1 e2) (Bool(b1 ∧ b2))) ∧
+   eval_prog_exp (Not e) (Bool(¬b))) ∧
 
-  (eval_prog_exp env e (Bool b)
+  (eval_prog_exp e1 (Int i1) ∧
+   eval_prog_exp e2 (Int i2)
    ⇒
-   eval_prog_exp env (Not e) (Bool(¬b))) ∧
+   eval_prog_exp (Plus e1 e2) (Int(i1 + i2))) ∧
 
-  (eval_prog_exp env e1 (Int i1) ∧
-   eval_prog_exp env e2 (Int i2)
+  (eval_prog_exp e1 (Int i1) ∧
+   eval_prog_exp e2 (Int i2)
    ⇒
-   eval_prog_exp env (Plus e1 e2) (Int(i1 + i2))) ∧
+   eval_prog_exp (Minus e1 e2) (Int(i1 + i2))) ∧
 
-  (eval_prog_exp env e1 (Int i1) ∧
-   eval_prog_exp env e2 (Int i2)
-   ⇒
-   eval_prog_exp env (Minus e1 e2) (Int(i1 + i2))) ∧
-
-  (eval_prog_exp env e1 (Path p1) ∧
-   eval_prog_exp env e2 (Path p2) ∧
+  (eval_prog_exp e1 (Path p1) ∧
+   eval_prog_exp e2 (Path p2) ∧
    path_concat p1 p2 = SOME p3
    ⇒
-   eval_prog_exp env (Concat e1 e2) (Path p3)) ∧
+   eval_prog_exp (Concat e1 e2) (Path p3)) ∧
 
-  (eval_prog_exp env e (Path p) ∧
+  (eval_prog_exp e (Path p) ∧
    path_base p = SOME p'
    ⇒
-   eval_prog_exp env (Base e) (Path p')) ∧
+   eval_prog_exp (Base e) (Path p')) ∧
 
-  (eval_prog_exp env e (Path p) ∧
+  (eval_prog_exp e (Path p) ∧
    path_dir p = SOME p'
    ⇒
-   eval_prog_exp env (Dir e) (Path p'))`
+   eval_prog_exp (Dir e) (Path p'))`
 
 val _ = Hol_datatype`directory =
     FileLink of name => inode
@@ -168,14 +174,14 @@ val resolve_def = tDefine "resolve"`
 val _ = Hol_datatype `value =
     ProgValue of prog_value
   | ForestValue of forest
-  | PathValue of abspath
+  | PathValue of abstract_path
   | AddressValue of address`
 
 val _ = Hol_datatype `
   exp =
     ProgExp of prog_exp
-  | Var of var
-  | AddrVar of var
+  | Vals of value set
+  | AddrVal of address
   | Union of exp => exp
   | Inter of exp => exp
   | Diff of exp => exp
@@ -188,115 +194,87 @@ val values_same_type_def = Define`
     (∀x. x ∈ s ⇒ ∃v. x = PathValue v) ∨
     (∀x. x ∈ s ⇒ ∃v. x = AddressValue v)`
 
-val dest_ProgValue_def = Define`
-  dest_ProgValue (ProgValue v) = v`
-
 val (eval_exp_rules,eval_exp_ind,eval_exp_cases) = Hol_reln`
-  (eval_prog_exp (dest_ProgValue o_f (DRESTRICT env {x | FLOOKUP env x = SOME (ProgValue pv)})) pe pv
+  (eval_prog_exp pe pv
    ⇒
-   eval_exp env (ProgExp pe) {ProgValue pv}) ∧
+   eval_exp (ProgExp pe) {ProgValue pv}) ∧
 
-  (FLOOKUP env x = SOME v
+  (values_same_type vs
    ⇒
-   eval_exp env (Var x) {v}) ∧
+   eval_exp (Vals vs) vs) ∧
 
-  (FLOOKUP env x = SOME v
+  (eval_exp (AddrVal a) {AddressValue a}) ∧
+
+  (eval_exp e1 vs1 ∧
+   eval_exp e2 vs2 ∧
+   values_same_type (vs1 ∪ vs2)
    ⇒
-   eval_exp env (AddrVar x) {v}) ∧
+   eval_exp (Union e1 e2) (vs1 ∪ vs2)) ∧
 
-  (eval_exp env e1 vs1 ∧
-   eval_exp env e2 vs2
+  (eval_exp e1 vs1 ∧
+   eval_exp e2 vs2 ∧
+   values_same_type (vs1 ∪ vs2)
    ⇒
-   eval_exp env (Union e1 e2) (vs1 ∪ vs2)) ∧
+   eval_exp (Inter e1 e2) (vs1 ∩ vs2)) ∧
 
-  (eval_exp env e1 vs1 ∧
-   eval_exp env e2 vs2
+  (eval_exp e1 vs1 ∧
+   eval_exp e2 vs2
    ⇒
-   eval_exp env (Inter e1 e2) (vs1 ∩ vs2)) ∧
+   eval_exp (Diff e1 e2) (vs1 DIFF vs2))`
 
-  (eval_exp env e1 vs1 ∧
-   eval_exp env e2 vs2
-   ⇒
-   eval_exp env (Diff e1 e2) (vs1 DIFF vs2))`
+val _ = type_abbrev("env",``:var |-> prog_value``)
 
-val _ = type_abbrev("env",``:var |-> value``)
+val _ = type_abbrev("dir_assertion",``:forest set``)
 
-val _ = type_abbrev("dir_assertion",``:env -> forest set``)
-
-val DEmpty_def = Define`DEmpty env = { [] }`
+val DEmpty_def = Define`DEmpty = { [] }`
+val _ = overload_on("∅",``DEmpty``)
 
 val DFileLink_def = Define`
-  DFileLink e1 e2 env = { [FileLink n b] |
-    eval_exp env e1 {ProgValue (Path (Name n))} ∧
-    eval_exp env e2 {ProgValue (Inode b)}}`
+  DFileLink e1 e2 = { [FileLink n b] |
+    eval_exp e1 {ProgValue (NameVal n)} ∧
+    eval_exp e2 {ProgValue (Inode b)}}`
 
 val DDirectory_def = Define`
-  DDirectory e (da:dir_assertion) env = { [Directory n ds] |
-    eval_exp env e {ProgValue (Path (Name n))} ∧
-    da env ds }`
+  DDirectory e (da:dir_assertion) = { [Directory n ds] |
+    eval_exp e {ProgValue (NameVal n)} ∧
+    ds ∈ da }`
 
 val DExp_def = Define`
-  DExp exp env = { ds | ∃vs. eval_exp env exp vs ∧ (ForestValue ds) ∈ vs }`
+  DExp exp = { ds | ∃vs. eval_exp exp vs ∧ (ForestValue ds) ∈ vs }`
 
 val DConcat_def = Define`
-  DConcat (da1:dir_assertion) (da2:dir_assertion) env =
-    { l1++l2 | l1 ∈ da1 env ∧ l2 ∈ da2 env }`
+  DConcat (da1:dir_assertion) (da2:dir_assertion) =
+    { l1++l2 | l1 ∈ da1 ∧ l2 ∈ da2 }`
+val _ = overload_on("+",``DConcat``)
 
 val DContextApplication_def = Define`
-  DContextApplication (da1:dir_assertion) addr (da2:dir_assertion) env =
-    { subst_forest addr f2 f1 | f1 ∈ da1 env ∧ f2 ∈ da2 env }`
+  DContextApplication (da1:dir_assertion) addr (da2:dir_assertion) =
+    { subst_forest addr f2 f1 | (f2,f1) | f1 ∈ da1 ∧ f2 ∈ da2 ∧ (∃p. EXISTS (λd. IS_SOME (resolve p (SOME addr) d)) f1) }`
 
 val DPathResolution_def = Define`
   DPathResolution exp env = { ds |
     ∃p ps a.
-    eval_exp env exp {PathValue (RelPath p ps,a)} ∧
+    eval_exp exp {PathValue (RelPath p ps,a)} ∧
     EXISTS IS_SOME (MAP (resolve (p::ps) a) ds) }`
 
-
-(* First order connectives and qunatifiers for directory assertions *)
-val DConjunction_def = Define`
-  DConjunction (da1: dir_assertion) (da2: dir_assertion) env = { ds |
-    ds ∈ da1 env ∧
-    ds ∈ da2 env }`
-
-val DDisjunction_def = Define`
-  DDisjunction (da1: dir_assertion) (da2: dir_assertion) env = { ds |
-    ds ∈ da1 env ∨
-    ds ∈ da2 env }`
-
-val DFalse_def = Define`
-  DFalse env = { }` (* empty set *)
-
-val DNeg_def = Define`
-  DNeg (da: dir_assertion) env = { ds | ds ∉ da env }`
-
-val DImplication_def = Define`
-  DImplication (da1: dir_assertion) (da2: dir_assertion) env =
-    { ds | ds ∉ da1 env } ∪ (da2 env)`
+val DLift_def = Define`
+  DLift f (da1:dir_assertion) da2 = { ds | f (ds ∈ da1) (ds ∈ da2) }`
+val _ = overload_on("/\\",``DLift $/\``)
+val _ = overload_on("\\/",``DLift $\/``)
+val _ = overload_on("F",``({}):dir_assertion``)
+val _ = overload_on("T",``(UNIV):dir_assertion``)
+val _ = overload_on("==>",``DLift $==>``)
+val _ = overload_on("<=>",``DLift $<=>``)
+val _ = overload_on("~",``λda:dir_assertion. da ⇒ F``)
 
 val DExists_def = Define`
-  DExists var (da: dir_assertion) env = { ds |
-    ∃v. ds ∈ da (FUPDATE env (var, v)) }`
-
-(* Derived directory assertions *)
-val DForAll_def = Define`
-  DForAll var (da: dir_assertion) =
-    DNeg (DExists var (DNeg da))`
-
-val DTrue_def = Define`
-  DTrue = DNeg DFalse`
-
-(*
-
-type_of
-``DConcat (DDirectory (ProgExp(Lit(Path(Name a)))) DEmpty)
-          (DDirectory (ProgExp(Lit(Path(Name b)))) DEmpty)``
-
-*)
+  DExists (P : α -> dir_assertion) = { ds | ∃v. ds ∈ (P v) }`
+val _ = overload_on("?",``DExists``)
+val _ = overload_on("!",``λP : α -> dir_assertion. ¬∃v. ¬(P v)``)
 
 val _ = Hol_datatype`instrumented_filesystem =
   <| root : forest option
-   ; address_env : address |-> (abspath # forest)
+   ; address_env : address |-> (abstract_path # forest)
    ; inode_env : inode |-> bytes
    |>`
 
@@ -308,85 +286,79 @@ val _ = Hol_datatype`process_heap =
 
 val _ = Hol_datatype`instrumented_state =
   <| fs : instrumented_filesystem
-   ; ph : process_heap
-   ; vs : var |-> prog_value
+   ; heap : process_heap
+   ; env : env
    |>`
 
-val _ = type_abbrev("assertion",``:env -> instrumented_state set``)
+val _ = type_abbrev("assertion",``:instrumented_state set``)
 
 val Empty_def = Define`
-  Empty (env:env)
+  Empty
     = { <| fs := <| root := NONE; address_env := FEMPTY; inode_env := FEMPTY |>
-         ; ph := <| filedesc_env := FEMPTY; dirstream_env := FEMPTY; heap_env := FEMPTY |>
-         ; vs := FEMPTY
+         ; heap := <| filedesc_env := FEMPTY; dirstream_env := FEMPTY; heap_env := FEMPTY |>
+         ; env := FEMPTY
          |> }`
 
 val DirCell_def = Define`
-  DirCell addrvar path_exp da env = { state |
-    ∃ap ds addr.
-    (* Ramana: This doesn't make sense.
-               env : var |-> value,
-               but we need addr to be an address, not a value *)
-    (* Gian: We have AddressValue constructor in value, this should fix it *)
-    FLOOKUP env addrvar = SOME (AddressValue addr) ∧
+  DirCell addr path_exp da = { state |
+    ∃ap ds.
     FLOOKUP state.fs.address_env addr = SOME (ap,ds) ∧
-    eval_exp env exp {PathValue ap} ∧
-    ds ∈ da env }`
+    eval_exp path_exp {PathValue ap} ∧
+    ds ∈ da }`
 
 val RootCell_def = Define`
-  RootCell da env = { state |
+  RootCell da = { state |
     ∃ds. state.fs.root = SOME ds ∧
-    ds ∈ da env }`
+    ds ∈ da }`
 
 val FileCell_def = Define`
   FileCell inode_exp bytes_exp env = { state |
    ∃inode bytes.
    FLOOKUP state.fs.inode_env inode = SOME bytes ∧
-   eval_exp env inode_exp {ProgValue (Inode inode)} ∧
-   eval_exp env bytes_exp {ProgValue (Byte bytes)} }`
+   eval_exp inode_exp {ProgValue (Inode inode)} ∧
+   eval_exp bytes_exp {ProgValue (Bytes bytes)} }`
 
 val FileDescCell_def = Define`
-  FileDescCell fd_exp inode_exp offset_exp env = { state |
+  FileDescCell fd_exp inode_exp offset_exp = { state |
     ∃fd inode offset.
     0 ≤ offset ∧
-    FLOOKUP state.ph.filedesc_env fd = SOME (inode, Num offset) ∧
-    eval_exp env fd_exp {ProgValue (Ofaddr fd)} ∧
-    eval_exp env inode_exp {ProgValue (Inode inode)} ∧
-    eval_exp env offset_exp {ProgValue (Int offset)} }`
+    FLOOKUP state.heap.filedesc_env fd = SOME (inode, Num offset) ∧
+    eval_exp fd_exp {ProgValue (Ofaddr fd)} ∧
+    eval_exp inode_exp {ProgValue (Inode inode)} ∧
+    eval_exp offset_exp {ProgValue (Int offset)} }`
 
 val DirStreamCell_def = Define`
-  DirStreamCell ds_exp names_exp env = { state |
+  DirStreamCell ds_exp names_exp = { state |
     ∃dirstr ns.
-    FLOOKUP state.ph.dirstream_env dirstr = SOME { n | ProgValue(Path(Name n)) ∈ ns } ∧
-    eval_exp env ds_exp {ProgValue (Dirstream dirstr)} ∧
-    eval_exp env names_exp ns ∧
-    (∀v. v ∈ ns ⇒ ∃n. v = ProgValue(Path(Name n))) }`
+    FLOOKUP state.heap.dirstream_env dirstr = SOME { n | ProgValue(NameVal n) ∈ ns } ∧
+    eval_exp ds_exp {ProgValue (Dirstream dirstr)} ∧
+    eval_exp names_exp ns ∧
+    (∀v. v ∈ ns ⇒ ∃n. v = ProgValue(NameVal n)) }`
 
 val HeapCell_def = Define`
-  HeapCell addr_exp val_exp env = { state |
+  HeapCell addr_exp val_exp = { state |
     ∃addr v.
     0 ≤ addr ∧
-    FLOOKUP state.ph.heap_env (Num addr) = SOME v ∧
-    eval_exp env addr_exp {ProgValue (Int addr)} ∧
-    eval_exp env val_exp {ProgValue (Int v)} }`
+    FLOOKUP state.heap.heap_env (Num addr) = SOME v ∧
+    eval_exp addr_exp {ProgValue (Int addr)} ∧
+    eval_exp val_exp {ProgValue (Int v)} }`
 
+(* Ramana: Why can't we just use ExpCell (Var v) for this? *)
+(* Gian: There is a subtle difference in their use. VarCell is used as a spatial
+   formula whereas ExpCell is not. Using ExpCell to describe the value of a
+   program expression requires the use of VarCells for every variable occurring
+   within the program expression. Single variables can be always treated disjointly,
+   whereas program expressions may have an overlap in the variables they use.
+   That being said, in this work I think it is simpler to treat command arugments as simple variables,
+   since we are not fully formalising the programming language anyway. *)
 val VarCell_def = Define`
-  VarCell var val_exp env = { state |
+  VarCell var val_exp = { state |
     ∃v.
-    FLOOKUP state.vs var = SOME v ∧
-    eval_exp env val_exp {ProgValue v} }`
-
-val ExpCell_def = Define`
-  ExpCell prog_exp exp env = { state |
-    ∃thevalue.
-    (* Ramana: is state.vs supposed to only contain prog_values in its domain?
-       currently it contains values in its domain *)
-    (* Gian: Yes. Changed the range to prog_vals. Hope it works *)
-    eval_prog_exp state.vs prog_exp thevalue ∧
-    eval_exp env exp {ProgValue thevalue} }`
+    FLOOKUP state.env var = SOME v ∧
+    eval_exp val_exp {ProgValue v} }`
 
 val Exp_def = Define`
-  Exp exp env = { state | state | eval_exp env exp {ProgValue (Bool T)} }`
+  Exp exp = { state | state | eval_exp exp {ProgValue (Bool T)} }`
 
 val root_compose_def = Define`
   (root_compose NONE     NONE     x ⇔ (x = NONE)  ) ∧
@@ -399,345 +371,527 @@ val dfunion_def = Define`
 
 val Star_def = Define`
   Star a1 a2 = { state |
-    ∃fs1 fs2 ph1 ph2 vs1 vs2.
+    ∃fs1 fs2 h1 h2 env1 env2.
       root_compose fs1.root          fs2.root          state.fs.root          ∧
       dfunion      fs1.address_env   fs2.address_env   state.fs.address_env   ∧
       dfunion      fs1.inode_env     fs2.inode_env     state.fs.inode_env     ∧
-      dfunion      ph1.filedesc_env  ph2.filedesc_env  state.ph.filedesc_env  ∧
-      dfunion      ph1.dirstream_env ph2.dirstream_env state.ph.dirstream_env ∧
-      dfunion      ph1.heap_env      ph2.heap_env      state.ph.heap_env ∧
-      dfunion      vs1               vs2               state.vs }`
+      dfunion      h1.filedesc_env   h2.filedesc_env   state.heap.filedesc_env  ∧
+      dfunion      h1.dirstream_env  h2.dirstream_env  state.heap.dirstream_env ∧
+      dfunion      h1.heap_env       h2.heap_env       state.heap.heap_env ∧
+      dfunion      env1              env2              state.env ∧
+      <| fs:=fs1; heap:=h1; env:=env1 |> ∈ a1 ∧
+      <| fs:=fs2; heap:=h2; env:=env2 |> ∈ a2 }`
+val _ = Parse.overload_on("*",``Star``)
 
-(* Top level first order connectives and quantifiers *)
-val Conjunction_def = Define`
-  Conjunction a1 a2 env = { state |
-    state ∈ a1 env ∧ state ∈ a2 env }`
-
-val Disjunction_def = Define`
-  Disjunction a1 a2 env = { state |
-    state ∈ a1 env ∨ state ∈ a2 env }`
-
-val False_def = Define`
-  False env = { }` (* empty set *)
-
-val Neg_def = Define`
-  Neg a env = { state | state ∉ a env }`
-
-val Implication_def = Define`
-  Implication a1 a2 env =
-    { state | state ∉ a1 env } ∪ (a2 env)`
+val Lift_def = Define`
+  Lift f (a1:assertion) a2 = { state | f (state ∈ a1) (state ∈ a2) }`
+val _ = Parse.overload_on("/\\",``Lift $/\``)
+val _ = Parse.overload_on("\\/",``Lift $\/``)
+val _ = Parse.overload_on("F",``{}:assertion``)
+val _ = Parse.overload_on("T",``UNIV:assertion``)
+val _ = Parse.overload_on("==>",``Lift $==>``)
+val _ = Parse.overload_on("<=>",``Lift $<=>``)
+val _ = Parse.overload_on("~",``λa:assertion. a ⇒ F``)
 
 val Exists_def = Define`
-  Exists var a env = { state |
-    ∃v. state ∈ a (FUPDATE env (var, v)) }`
+  Exists (P : α -> assertion) = { state | ∃v. state ∈ (P v) }`
+val _ = Parse.overload_on("?",``Exists``)
+val _ = Parse.overload_on("!",``λP : α -> assertion. ¬∃v. ¬(P v)``)
 
-(* Derived directory assertions *)
-val ForAll_def = Define`
-  ForAll var a =
-    Neg (Exists var (Neg a))`
+val SomeVarCell_def = Define`
+    SomeVarCell var = ∃v. (VarCell var (Vals {ProgValue v}))`
 
-val True_def = Define`
-  True = Neg False`
-
-(* Derived assertions; predicates *)
-
-(* GIAN: OK. To avoid a name clash between the two vars I take advantage of the 
-   fact that variables are values of type :num. Thus, the existentially quantified
-   variable is always a different variable from the argument variable. *)
-val SomeValVarCell_def = Define`
-    SomeVarCell var = Exists (var + 1) (VarCell (ProgVar var) (ProgVar (var + 1)))`
-
-(* GIAN: We need a dir_assertion True *)
 val Somewhere_def = Define`
-  Somewhere (da: dir_assertion) = 
-    DExists 0 (DContextApplication DTrue (AddrVar 0) da)`
+  Somewhere (da: dir_assertion) =
+    ∃x. DContextApplication T x da`
 
 val SomewhereTop_def = Define`
-    SomewhereTop (da: dir_assertion) = DConcat DTrue da`
+    SomewhereTop (da: dir_assertion) = DConcat T da`
 
 val CompleteTree_def = Define`
-  CompleteTree = DNeg (DExists 0 (Somewhere (AddrVar 0)))
+  CompleteTree = ¬(∃x. (Somewhere (DExp (AddrVal x))))`
 
+(* Ramana: Do you require some variable to bind v in the program environment? *)
+(* Gian: No, here v is a logical variable *)
 val Entry_def = Define`
-  Entry name_exp = DDisjunction (DDirectory name_exp DTrue)
-			        (DExists 0 (DFileLink name_exp (ProgVar 0)))`
+  Entry name_exp =
+    ((DDirectory name_exp T) ∨
+		 (∃v. DFileLink name_exp (Vals {ProgValue v})))`
 
 val TopAddress_def = Define`
-  TopAddress = DExists 0 (SomewhereTop (AddrVar 0))`
+  TopAddress = ∃x. (SomewhereTop (DExp (AddrVal x)))`
 
 val TopContents_def = Define`
-  TopContents (da: dir_assertion) = DConjunction da (DNeg TopAddress)
+  TopContents (da: dir_assertion) = (da ∧ ¬TopAddress)`
 
 val NameNotHere_def = Define`
-    NameNotHere name_exp = DConjunction (DNeg (SomewhereTop (Entry name_exp)))
-				        (DNeg TopAddress)
+    NameNotHere name_exp =
+      (¬ SomewhereTop (Entry name_exp) ∧ ¬ TopAddress)`
 
 (* Commands *)
 val _ = Hol_datatype `command =
     (* First var is the one storing the return value after execution *)
     Mkdir of var => var
-  | Rename of var => var => var
+  | Rename of var => var => var`
 
 (* Hoare triples *)
-(* Gian: hope this is the right syntax *)
 val _ = type_abbrev("hoare_triple", ``:assertion # command # assertion``)
 
 (* AXIOMS *)
-(* GIAN: the type: var is defined as :num, so I use naturals as vars *)
+
+val _ = overload_on("DDir",``λe da. DDirectory (ProgExp e) da``)
+val _ = overload_on("Safe",``λn. NameNotHere (ProgExp n)``)
+val _ = overload_on("VarP",``λvar path. VarCell var (ProgExp path)``)
+val _ = overload_on("VarI",``λvar int. VarCell var (ProgExp (Lit (Int int)))``)
+val _ = overload_on("DirP",``λaddr path da. DirCell addr (ProgExp path) da``)
+val _ = overload_on(":>",``λname inode. DFileLink (ProgExp name) (ProgExp inode)``)
+val _ = add_infix(":>",425,NONASSOC)
+val _ = overload_on("=",``λe1 e2. Exp (ProgExp (Equal e1 e2))``)
+val _ = overload_on("<>",``λe1 e2. Exp (ProgExp (Neg (Equal e1 e2)))``)
+val _ = Unicode.uoverload_on(Unicode.UChar.neq,``λe1 e2. Exp (ProgExp (Neg (Equal e1 e2)))``)
 
 (* mkdir *)
-val mkdir =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
-		(DirCell 5 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
-							     (DConjunction (DExp (Var 6)) 
-						           		   (NameNotThere 
-										(ProgExp (ProgVar 4)))))))),
-    (Mkdir 0 1),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
-		(DirCell 5 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
-							     (DConcat (DExp (Var 6))
-								      (DDirectory (ProgExp (ProgVar 4)) 
-										  Empty))))))
+(* Ramana:
+   All the lowercase names here (r,p,b,a,v,c,path) are HOL variables.
+   mkdir is schematic in them - any one of those variables can be instantiated with another HOL term.
+   r and path are of type var. they are program variables, and are affected by the * operator:
+     if the same one appears in more than one starred conjunct, the triple becomes vacuous, since
+     the star is ensuring all the program variables are disjoint between assertions.
+   v is of type address, and is also affected by * because the address_env is split.
+   c is of type value set. it is a logical variable standing for whatever set you want.
+   p, b, and a are of type path.
+   I figure the axiom is really a schema for any particular path names you want to put in those places,
+   so the axiom talks about literal paths but we put a HOL variable for the path name.
+*)
+val mkdir = ``
+    let P = Lit (Path p) in
+    let B = Lit (Path b) in
+    let A = Lit (Path a) in
+    let C = DExp (Vals c) in
+    (* Ramana: should we constrain c to only contain ForestValues here? *)
 
-(* mkdir, in root *)
-val mkdir_root =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 2))))
-		(RootCell (Conjunction (DExp (Var 3)) (NameNotThere (ProgExp (ProgVar 2))))))),
-    (Mkdir 0 1),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 2))))
-		(RootCell (DConcat (DExp (Var 3)) (DDirectory (ProgExp (ProgVar 2)) Empty)))))
+    (SomeVarCell r
+     * VarP path (P / B / A)
+     * DirCell v (ProgExp P)
+         (DDir B (C ∧ Safe A))
+
+    ,Mkdir r path
+
+    ,VarI r 0
+     * VarP path (P / B / A)
+     * DirCell v (ProgExp P)
+         (DDir B (C + DDir A ∅))
+    )``
+
+(* mkdir, directly under root case *)
+val mkdir_root = ``
+    let A = Lit (Path a) in
+    let C = DExp (Vals c) in
+
+    (SomeVarCell r
+     * VarP path (Root / A)
+     * RootCell (C ∧ Safe A)
+
+    ,Mkdir r path
+
+    ,VarI r 0
+     * VarP path (Root / A)
+     * RootCell (C + (DDir A ∅))
+    )``
 
 (* rename, dir, move, target not exists *)
-val rename_dir_move_not_exist =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (Concat (ProgVar 6) (ProgVar 7)))))
-		      (Star (DirCell 8 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
-									 (DConjunction (DExp (Var 9))
-										       CompleteTree)))
-			    (DirCell 10 (ProgExp (ProgVar 5)) (DDirectory (ProgExp (ProgVar 6))
-									  (DConjunction (DExp (Var 11))
-											(NameNotThere (ProgExp (ProgVar 7)))))))))),
-    (Rename 0 1 4),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (Concat (ProgVar 6) (ProgVar 7)))))
-		      (Star (DirCell 8 (ProgExp (ProgVar 2)) DEmpty)
-			    (DirCell 10 (ProgExp (ProgVar 5)) (DDirectory (ProgExp (ProgVar 6))
-									  (DConcat (DExp (Var 11))
-										   (DDirectory (ProgExp (ProgVar 3))
-											       (DExp (Var 9))))))))))
+val rename_dir_move_not_exist = ``
+    let P = Lit (Path p) in
+    let D = Lit (Path d) in
+    let A = Lit (Path a) in
+    let P' = Lit (Path p') in
+    let B = Lit (Path b) in
+    let C = DExp (Vals c) in
+    let C' = DExp (Vals c') in
 
-(* rename, dir, move, targe not exists, under root *)
-val rename_dir_move_not_exist_root =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 5))))
-		      (Star (DirCell 6 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
-									 (DConjunction (DExp (Var 7))
-										       CompleteTree)))
-			    (RootCell (DConjunction (DExp (Var 8)) (NameNotThere (ProgExp (ProgVar 5))))))))),
-    (Rename 0 1 4),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 5))))
-		      (Star (DirCell 6 (ProgExp (ProgVar 2)) DEmpty)
-			    (RootCell (DConcat (DExp (Var 8)) (DDirectory (ProgExp (ProgVar 3))
-									  (DExp (Var 7)))))))))
+    (SomeVarCell r
+     * VarP old (P / A)
+     * VarP new (P' / D / B) (* Ramana: do we need p ≠ p'? *) 
+     (* Gian: No, that is a perfectly valid case: move the source dir to under some sibling. *)
+     * DirP v P (DDir A (C ∧ CompleteTree))
+     * DirP w P' (DDir D (C' ∧ Safe B))
+
+    ,Rename r old new
+
+    ,VarI r 0
+     * VarP old (P / A)
+     * VarP new (P' / D / B)
+     * DirP v P ∅
+     * DirP w P' (DDir D (C' + (DDir B C)))
+      (* Ramana: why is CompleteTree not re-asserted? *)
+      (* Gian: it does not matter. C is invariant, so it's still complete in the postocondition *)
+    )``
+
+(* rename, dir, move, target not exists, under root *)
+val rename_dir_move_not_exist_root = ``
+    let P = Lit (Path p) in
+    let A = Lit (Path a) in
+    let B = Lit (Path b) in
+    let C = DExp (Vals c) in
+    let C' = DExp (Vals c') in
+
+    (SomeVarCell r
+     * VarP old (P / A)
+     * VarP new (Root / B)
+     * DirP v P (DDir A (C ∧ CompleteTree))
+     * RootCell (C' ∧ Safe B)
+
+    ,Rename r old new
+
+    ,VarI r 0
+     * VarP old (P / A)
+     * VarP new (Root / B)
+     * DirP v P ∅
+     * RootCell (C' + DDir B C)
+    )``
 
 (* rename, dir, target not exists *)
-val rename_dir_not_exist =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
-		(Star (VarCell 5 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 6)))))
-		      (DirCell 7 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
-								   (DConcat (DDirectory (ProgExp (ProgVar 4))
-											(DConjunction (DExp (Var 8))
-												      CompleteTree))
-									    (DConjunction (DExp (Var 9))
-											  (NameNotThere (ProgExp (ProgVar 6)))))))))),
-    (Rename 0 1 5),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
-		(Star (VarCell 5 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 6)))))
-		      (DirCell 7 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
-								   (DConcat (DExp (Var 9))
-									    (DDirectory (ProgExp (ProgVar 6))
-											(DExp (Var 8)))))))))
+val rename_dir_not_exist = ``
+    let P = Lit (Path p) in
+    let D = Lit (Path d) in
+    let A = Lit (Path a) in
+    let B = Lit (Path b) in
+    let C = DExp (Vals c) in
+    let C' = DExp (Vals c') in
+
+    (SomeVarCell r
+     * VarP old (P / D / A)
+     * VarP new (P / D / B)
+     * DirP v P
+         (DDir D
+           (C + DDir A (C' ∧ CompleteTree)
+            ∧ Safe B))
+
+    ,Rename r old new
+
+    ,VarI r 0
+     * VarP old (P / D / A)
+     * VarP new (P / D / B)
+     * DirP v P
+         (DDir D (C + DDir B C'))
+    )``
 
 (* rename, dir, target not exist, root *)
-val rename_dir_not_exist_root =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 2))))
-		(Star (VarCell 3 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 4))))
-		      (RootCell (DConcat (DDirectory (ProgExp (ProgVar 2)) (DConjunction (DExp (Var 5)) CompleteTree))
-					 (DConjunction (DExp (Var 6)) (NameNotThere (ProgExp (ProgVar 4))))))))),
-    (Rename 0 1 3),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 2))))
-		(Star (VarCell 3 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 4))))
-		      (RootCell (DConcat (DExp (Var 6)) (DDirectory (ProgExp (ProgVar 4)) (DExp (Var 5))))))))
+val rename_dir_not_exist_root = ``
+    let A = Lit (Path a) in
+    let B = Lit (Path b) in
+    let C = DExp (Vals c) in
+    let C' = DExp (Vals c') in
+
+    (SomeVarCell r
+     * VarP old (Root / A)
+     * VarP new (Root / B)
+     * RootCell
+         (C + DDir A (C' ∧ CompleteTree)
+          ∧ Safe B)
+
+    ,Rename r old new
+
+    ,VarI r 0
+     * VarP old (Root / A)
+     * VarP new (Root / B)
+     * RootCell (C + DDir B C')
+    )``
 
 (* rename: dir, target exists *)
-val rename_move_dir_exist =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (ProgVar 6))))
-		      (Star (DirCell 7 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
-									 (DConjunction (DExp (Var 8))
-										       CompleteTree)))
-			    (DirCell 9 (ProgExp (ProgVar 5)) (DDirectory (ProgExp (ProgVar 6))
-									 DEmpty)))))),
-    (Rename 0 1 4),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (ProgVar 6))))
-		      (Star (DirCell 7 (ProgExp (ProgVar 2)) DEmpty)
-			    (DirCell 9 (ProgExp (ProgVar 5)) (DDirectory (ProgExp (ProgVar 3))
-									 (DExp (Var 8))))))))
+val rename_move_dir_exist = ``
+    let P = Lit (Path p) in
+    let A = Lit (Path a) in
+    let P' = Lit (Path p') in
+    let B = Lit (Path b) in
+    let C = DExp (Vals c) in
+
+    (SomeVarCell r
+     * VarP old (P / A)
+     * VarP new (P' / B)
+     * DirP v P (DDir A (C ∧ CompleteTree))
+     * DirP w P' (DDir B ∅)
+
+    ,Rename r old new
+
+    ,VarI r 0
+     * VarP old (P / A)
+     * VarP new (P' / B)
+     * DirP v P ∅
+     * DirP w P' (DDir B C)
+    )``
 
 (* rename: move, file, target not exist *)
-val rename_move_file_not_exist =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (Concat (ProgVar 6) (ProgVar 7)))))
-		      (Star (DirCell 8 (ProgExp (ProgVar 2)) (DFileLink (ProgExp (ProgVar 3)) (ProgExp (ProgVar 9))))
-			    (DirCell 10 (ProgExp (ProgVar 5)) (DDirectory (ProgExp (ProgVar 6))
-									  (DConjunction (DExp (Var 11))
-											(NameNotThere (ProgExp (ProgVar 7)))))))))),
-    (Rename 0 1 4),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (Concat (ProgVar 6) (ProgVar 7)))))
-		      (Star (DirCell 8 (ProgExp (ProgVar 2)) DEmpty)
-			    (DirCell 10 (ProgExp (ProgVar 5)) (DDirectory (ProgExp (ProgVar 6))
-									  (DConcat (DExp (Var 11))
-										   (DFileLink (ProgExp (ProgVar 7)) (ProgExp (ProgVar 9))))))))))
+val rename_move_file_not_exist =``
+    let P = Lit (Path p) in
+    let A = Name a in
+    let P' = Lit (Path p') in
+    let D = Lit (Path d) in
+    let B = Name b in
+    let I = Lit (Inode i) in
+    let C = DExp (Vals c) in
+
+    (SomeVarCell r
+     * VarP old (P / A)
+     * VarP new (P' / D / B)
+     * DirP v P (A :> I)
+     * DirP w P' (DDir D (C ∧ Safe B))
+
+    ,Rename r old new
+
+    ,VarI r 0
+     * VarP old (P / A)
+     * VarP new (P' / D / B)
+     * DirP v P ∅
+     * DirP w P' (DDir D (C + (B :> I)))
+    )``
 
 (* rename: move, file, target not exists under root *)
-val rename_move_file_not_exist_root =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 5))))
-		      (Star (DirCell 6 (ProgExp (ProgVar 2)) (DFileLink (ProgExp (ProgVar 3)) (ProgExp (ProgVar 7))))
-			    (RootCell (DConjunction (DExp (Var 8)) (NameNotThere (ProgExp (ProgVar 5))))))))),
-    (Rename 0 1 4),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 5))))
-		      (Star (DirCell 6 (ProgExp (ProgVar 2)) DEmpty)
-			    (RootCell (DConcat (DExp (Var 8)) (DFileLink (ProgExp (ProgVar 5)) (ProgExp (ProgVar 7)))))))))
+val rename_move_file_not_exist_root = ``
+    let P = Lit (Path p) in
+    let A = Name a in
+    let B = Name b in
+    let I = Lit (Inode i) in
+    let C = DExp (Vals c) in
+
+    (SomeVarCell 0
+     * VarP old (P / A)
+     * VarP new (Root / B)
+     * DirP v P (A :> I)
+     * RootCell (C ∧ Safe B)
+
+    ,Rename r old new
+
+    ,VarI r 0
+     * VarP old (P / A)
+     * VarP new (Root / B)
+     * DirP v P ∅
+     * RootCell (C + (B :> I))
+    )``
 
 (* rename: file, target not exist *)
-val rename_file_not_exist =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
-		(Star (VarCell 5 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 6)))))
-		      (DirCell 7 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
-								   (DConcat (DFileLink (ProgExp (ProgVar 4)) (ProgExp (ProgVar 8)))
-									    (DConjunction (DExp (Var 9)) (NameNotThere (ProgExp (ProgVar 6)))))))))),
-    (Rename 0 1 5),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 4)))))
-		(Star (VarCell 5 (ProgExp (Concat (ProgVar 2) (Concat (ProgVar 3) (ProgVar 6)))))
-		      (DirCell 7 (ProgExp (ProgVar 2)) (DDirectory (ProgExp (ProgVar 3))
-								   (DConcat (DExp (Var 9)) (DFileLink (ProgExp (ProgVar 6)) (ProgExp (ProgVar 8)))))))))
+val rename_file_not_exist = ``
+    let P = Lit (Path p) in
+    let D = Lit (Path d) in
+    let A = Name a in
+    let B = Name b in
+    let I = Lit (Inode i) in
+    let C = DExp (Vals c) in
+
+    (SomeVarCell r
+	   * VarP old (P / D / A)
+     * VarP new (P / D / B)
+     * DirP v P (DDir D (C + (A :> I) ∧ Safe B))
+
+    ,Rename r old new
+
+    ,VarI r 0
+	   * VarP old (P / D / A)
+     * VarP new (P / D / B)
+     * DirP v P (DDir D (C + (B :> I)))
+    )``
 
 (* rename: file, target not exist under root *)
-val rename_file_not_exist_root =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 2))))
-		(Star (VarCell 3 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 4))))
-		      (RootCell (DConcat (DFileLink (ProgExp (ProgVar 2)) (ProgExp (ProgVar 5)))
-					 (DConjunction (DExp (Var 6)) (NameNotThere (ProgExp (ProgVar 4))))))))),
-    (Rename 0 1 3),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 2))))
-		(Star (VarCell 3 (ProgExp (Concat (Lit (Path (AbsPath []))) (ProgVar 4))))
-		      (RootCell (DConcat (DExp (Var 6)) (DFileLink (ProgExp (ProgVar 4)) (ProgExp (ProgVar 5))))))))
+val rename_file_not_exist_root = ``
+    let A = Name a in
+    let B = Name b in
+    let I = Lit (Inode i) in
+    let C = DExp (Vals c) in
+
+    (SomeVarCell r
+	   * VarP old (Root / A)
+     * VarP new (Root / B)
+     * RootCell (C + (A :> I) ∧ Safe B)
+
+    ,Rename r old new
+
+    ,VarI r 0
+	   * VarP old (Root / A)
+     * VarP new (Root / B)
+     * RootCell (C + (B :> I))
+    )``
 
 (* rename: file, target exists *)
-val rename_file_exist =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (ProgVar 6))))
-		      (Star (DirCell 7 (ProgExp (ProgVar 2)) (DFileLink (ProgExp (ProgVar 3)) (ProgExp (ProgVar 8))))
-			    (DirCell 9 (ProgExp (ProgVar 5)) (Conjunction (DFileLink (ProgExp (ProgVar 6)) (ProgExp (ProgVar 10)))
-									  (Neg (Exp (Equal (ProgExp (ProgVar 8)) (ProgExp (ProgVar 10))))))))))),
-    (Rename 0 1 4),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (ProgVar 6))))
-		      (Star (DirCell 7 (ProgExp (ProgVar 2)) DEmpty)
-			    (DirCell 9 (ProgExp (ProgVar 5)) (DFileLink (ProgExp (ProgVar 6)) (ProgExp (ProgVar 8))))))))
+val rename_file_exist = ``
+    let P = Lit (Path p) in
+    let A = Name a in
+    let P' = Lit (Path p') in
+    let B = Name b in
+    let I = Lit (Inode i) in
+    let I' = Lit (Inode i') in
+
+    (SomeVarCell r
+	   * VarP old (P / A)
+     * VarP new (P' / B)
+     * DirP v P (A :> I)
+     * DirP w P' (B :> I')
+     ∧ I ≠ I'
+
+    ,Rename r old new
+
+    ,VarI r 0
+	   * VarP old (P / A)
+     * VarP new (P' / B)
+     * DirP v P ∅
+     * DirP w P' (B :> I)
+    )``
 
 (* rename: file, target exist, same inode *)
-val rename_file_exist_same =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (ProgVar 6))))
-		      (Star (DirCell 7 (ProgExp (ProgVar 2)) (DFileLink (ProgExp (ProgVar 3)) (ProgExp (ProgVar 8))))
-			    (DirCell 9 (ProgExp (ProgVar 5)) (Conjunction (DFileLink (ProgExp (ProgVar 6)) (ProgExp (ProgVar 8))))))))),
-    (Rename 0 1 4),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 5) (ProgVar 6))))
-		      (Star (DirCell 7 (ProgExp (ProgVar 2)) (DFileLink (ProgExp (ProgVar 3)) (ProgExp (ProgVar 8))))
-			    (DirCell 9 (ProgExp (ProgVar 5)) (Conjunction (DFileLink (ProgExp (ProgVar 6)) (ProgExp (ProgVar 8)))))))))
+val rename_file_exist_same = ``
+    let P = Lit (Path p) in
+    let A = Name a in
+    let P' = Lit (Path p') in
+    let B = Name b in
+    let I = Lit (Inode i) in
+
+    (SomeVarCell r
+	   * VarP old (P / A)
+     * VarP new (P' / B)
+     * DirP v P (A :> I)
+     * DirP w P' (B :> I)
+
+    ,Rename r old new
+
+    ,VarI r 0
+	   * VarP old (P / A)
+     * VarP new (P' / B)
+     * DirP v P (A :> I)
+     * DirP w P' (B :> I)
+    )``
 
 (* rename: same paths *)
-val rename_same =
-    (Star (SomeVarCell 0)
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		      (DirCell 5 (ProgExp (ProgVar 2)) (DConjuntion (DExp (Var 6)) (Entry (ProgExp (ProgVar 3)))))))),
-    (Rename 0 1 4),
-    (Star (VarCell 0 (ProgExp (Lit (Int 0))))
-	  (Star (VarCell 1 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		(Star (VarCell 4 (ProgExp (Concat (ProgVar 2) (ProgVar 3))))
-		      (DirCell 5 (ProgExp (ProgVar 2)) (DExp (Var 6))))))
+val rename_same = ``
+    let P = Lit (Path p) in
+    let A = Lit (Path a) in
+
+    (SomeVarCell 0
+	   * VarP old (P / A)
+     * VarP new (P / A)
+     * DirP v P (da ∧ Entry (ProgExp A))
+
+    ,Rename r old new
+
+    ,VarI r 0
+	   * VarP old (P / A)
+     * VarP new (P / A)
+     * DirP v P da
+    )``
+
+(* Assertion sanity checks *)
+(* Directory assertion checks *)
+
+(* Gian: Directory assertions have an envirnment,
+   so I need to apply some environment to get the set
+   of states satisfied by the assertion *)
+
+(* empty forest satisfies dirempty *)
+val t1 = prove(``([]:forest list) ∈ ∅``, rw[DEmpty_def])
+
+(* non empty forest does not satisfy ∅ *)
+val t2 = prove(``FileLink name inode ∉ ∅``, rw[DEmpty_def])
+
+(* nothing satisfies false; anything satisfies true *)
+val t3 = prove(``[FileLink name inode] ∉ F``, rw[DLift_def])
+val t4 = prove(``[FileLink name inode] ∈ T``, rw[DLift_def])
+
+(* directory does not satisfy file and vice versa *)
+val t5 = prove(
+  ``[Directory dn[FileLink fn x]] ∈
+          (DDir (Name dn) (Name fn :> Lit (Inode x)))``,
+  rw[DDirectory_def] >- (
+    rw[Once eval_exp_cases] >>
+    rw[Once eval_prog_exp_cases] ) >>
+  rw[DFileLink_def] >>
+  rw[Once eval_exp_cases] >>
+  rw[Once eval_prog_exp_cases] )
+
+val t6 = prove(
+  ``[Directory dn [FileLink fn n]] ∉
+      (DFileLink (ProgExp (Name dn)) (ProgExp (Lit (Inode n))))``,
+  rw[DFileLink_def])
+
+val t7 = prove(
+  ``[FileLink fn n] ∈ (DFileLink (ProgExp (Name fn)) (ProgExp (Lit (Inode n))))``,
+  rw[DFileLink_def] >>
+  rw[Once eval_exp_cases] >>
+  rw[Once eval_prog_exp_cases])
+
+val t8 = prove(
+  ``[FileLink "foo" 42] ∉ (DDirectory (ProgExp (Name "foo")) T)``,
+  rw[DDirectory_def])
+
+(* directory contents with true *)
+val dir = ``[Directory "a" [Directory "b" []; Directory "c" [FileLink "d" 42; Directory "e" []; FileLink "g" 42]; Directory "d" [FileLink "f" 4242]]]``
+val t9 = prove(
+  ``^dir ∈ (DDir (Name "a") T)``,
+  rw[DDirectory_def] >>
+  rw[Once eval_exp_cases] >>
+  rw[Once eval_prog_exp_cases] )
+
+val _ = dir ∉ (DDir (ProgExp (Name "a")) DDir (ProgExp (Name "b")) ∅) FEMPTY
+val _ = dir ∉ (DDir (ProgExp (Name "a")) DDir (ProgExp (Name "b")) T) FEMPTY
+val _ = dir ∈ (DDir (ProgExp (Name "a")) (DDir (ProgExp (Name "b")) T) + T) FEMPTY
+(* + is commutative *)
+val _ = dir ∈ (DDir (ProgExp (Name "a")) (DDir (ProgExp (Name "c")) T) + T) FEMPTY
 
 (*
-Val _ = Hol_datatype`
-  assertion =
-    Empty
-  | DirCell of address => exp => dir_assertion
-  | FileCell of exp => exp
-  | DescCell of exp => exp => exp
-  | DirStreamCell of exp => exp
-  | HeapCell of exp => exp
-  | VarCell of var => exp
-  | ExpCell of exp => exp
-  | Exp of exp`
+val subst_forest_MAP = store_thm("subst_forest_MAP",
+  ``∀ls a vs. 
 
-  assertion_semantics : assertion -> (var |-> value) -> instrumented_state set
+val resolve_lemma = prove(
+  ``(∀p a d x. resolve p a d = SOME x ⇒
+      case a of
+      | NONE => ∃c a'. d = subst_forest a' x c
+      | SOME a' => x = a (* ∧ d = subst_forest a' (Address a') d *))
 
-eval_exp : (var |-> value) exp -> value
+(* context application *)
+(* Gian: address is a type alias to :num *)
+val t14 = prove(
+  ``^dir ∉ (DContextApplication T 42 (DDir (Name "G") ∅))``,
+  rw[DContextApplication_def] >>
+  rw[DDirectory_def] >>
+  rw[Once eval_exp_cases] >>
+  rw[Once eval_prog_exp_cases] >>
+  rw[DEmpty_def] >>
+  Cases_on`f2 = [Directory "G" []]` >> simp[] >>
+  spose_not_then strip_assume_tac >> fs[] >>
+  fs[listTheory.EXISTS_MEM] >> rw[] >>
+  Cases_on`resolve p (SOME 42) e`>>fs[] >> rw[] >>
 
-val assertion_semantics_def = Define`
-  assertion_semantics env Empty = { <| fs = <| root = NONE; address_env = FEMPTY; inode_env = FEMPTY |>
-                                     ; ph = <| filedesc_env := FEMPTY; dirstream_env := FEMPTY |>
-                                     ; vs = FEMPTY
-                                     |> } ∧
-  assertion_semantics env (DirCell addr exp dir_assertion)
-  assertion_semantics env (FileCell e1 e2) = { is |
-    ∃n b.
-      eval_exp env e1 = Inode n ∧
-      eval_exp env e2 = Byte b ∧
-      FLOOKUP is.fs.inode_env n = SOME b } ∧
-  assertion_semantics env 
-
-
-{ assertion language } programming language { assertion language }
-
-val (assertion_semantics_rules,assertion_semantics_ind,assertion_semantics_cases)
-assertion includes:
-  program expressions
-  logical expressions
+  cheat )
+  subst_def
 *)
+
+val _ = dir ∈ (DContextApplication T 42 (DFileLink (ProgExp (Name "g")) (ProgExp (Lit (Inode 42))))) FEMPTY
+val _ = dir ∈ (DContextApplication (DDirectory (ProgExp (Name "a")) (Address 42)) 42 T) FEMPTY
+val _ = dir ∉ (DContextApplication (DDirectory (ProgExp (Name "a")) DEmpty) 42 T) FEMPTY
+
+(* Gian: we also need: 
+   - sibling uniqueness in directory forests
+   - uniqueness of abstract addresses *)
+
+(* instrumented directory heap cell assertions *)
+
+let state_cons env =
+  { <| fs := <| root := NONE; address_env := env; inode_env := FEMPTY |>
+      ; heap := <| filedesc_env := FEMPTY; dirstream_env := FEMPTY; heap_env := FEMPTY |>
+      ; env := FEMPTY
+    |> }
+
+val _ = 
+  let state = address_env_cons { 42 |-> (AbsPath ["foo"])  [] }
+  state ∉ DirP 41 (Lit (Path (AbsPath["foo"]))) ∅
+
+val _ = 
+  let state = address_env_cons { 42 |-> (AbsPath ["foo"])  [] }
+  state ∈ DirP 42 (Lit (Path (AbsPath["foo"]))) ∅
+
+(* star on non-disjoint addresses is false *)
+val _ =
+    { } ∈ address_env_cons { 42 |-> (AbsPath ["foo"])  []; 42 |-> (AbsPath ["foo"])  [] }
+
+val _ =
+  let state = address_env_cons { 42 |-> (AbsPath ["foo"])  dir }
+  state ∈ DirP 41 (Lit (Path (AbsPath["foo"]))) (DDirectory (ProgExp (Name "a")) (Address 42)) 42 T)
 
 val _ = export_theory()
