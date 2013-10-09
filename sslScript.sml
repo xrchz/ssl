@@ -1,4 +1,4 @@
-open HolKernel bossLib boolLib Parse lcsymtacs stringTheory intLib finite_mapTheory ParseExtras
+open HolKernel bossLib boolLib boolSimps Parse lcsymtacs stringTheory intLib finite_mapTheory ParseExtras
 
 val _ = new_theory"ssl"
 
@@ -828,11 +828,26 @@ val t9 = prove(
   rw[Once eval_exp_cases] >>
   rw[Once eval_prog_exp_cases] )
 
-val _ = dir ∉ (DDir (ProgExp (Name "a")) DDir (ProgExp (Name "b")) ∅) FEMPTY
-val _ = dir ∉ (DDir (ProgExp (Name "a")) DDir (ProgExp (Name "b")) T) FEMPTY
-val _ = dir ∈ (DDir (ProgExp (Name "a")) (DDir (ProgExp (Name "b")) T) + T) FEMPTY
+val t10 = prove(
+  ``^dir ∉ (DDir (Name "a") (DDir (Name "b") ∅))``,
+  rw[DDirectory_def])
+
+val t11 = prove(
+  ``^dir ∉ (DDir (Name "a") (DDir (Name "b") T))``,
+  rw[DDirectory_def])
+
+(* Ramana: this is false! *)
+val t12 = prove(
+  ``^dir ∈ (DDir (Name "a") (DDir (Name "b") T) + T)``,
+  rw[DDirectory_def,DConcat_def] >>
+  srw_tac[DNF_ss][])
+
 (* + is commutative *)
-val _ = dir ∈ (DDir (ProgExp (Name "a")) (DDir (ProgExp (Name "c")) T) + T) FEMPTY
+(* Ramana: this is false too! *)
+val t13 = prove(
+  ``^dir ∈ (DDir (Name "a") (DDir (Name "c") T) + T)``,
+  rw[DDirectory_def,DConcat_def] >>
+  srw_tac[DNF_ss][])
 
 (*
 val subst_forest_MAP = store_thm("subst_forest_MAP",
