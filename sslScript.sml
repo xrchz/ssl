@@ -836,11 +836,14 @@ val t11 = prove(
   ``^dir ∉ (DDir (Name "a") (DDir (Name "b") T))``,
   rw[DDirectory_def])
 
-(* Ramana: this is false! *)
 val t12 = prove(
-  ``^dir ∈ (DDir (Name "a") (DDir (Name "b") T) + T)``,
-  rw[DDirectory_def,DConcat_def] >>
-  srw_tac[DNF_ss][])
+  ``^dir ∈ (DDir (Name "a") ((DDir (Name "b") T) + T))``,
+  rw[DDirectory_def,DConcat_def] >- (
+    simp[Once eval_exp_cases] >>
+    simp[Once eval_prog_exp_cases] ) >>
+  srw_tac[DNF_ss][] >>
+  simp[Once eval_exp_cases] >>
+  simp[Once eval_prog_exp_cases] )
 
 (* + is commutative *)
 (* Ramana: this is false too! *)
