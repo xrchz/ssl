@@ -1,4 +1,4 @@
-open HolKernel bossLib boolLib boolSimps Parse lcsymtacs stringTheory intLib finite_mapTheory ParseExtras
+open HolKernel bossLib boolLib boolSimps Parse lcsymtacs stringTheory intLib finite_mapTheory sortingTheory listTheory ParseExtras
 
 val _ = new_theory"ssl"
 
@@ -244,7 +244,7 @@ val DExp_def = Define`
 
 val DConcat_def = Define`
   DConcat (da1:dir_assertion) (da2:dir_assertion) =
-    { l1++l2 | l1 ∈ da1 ∧ l2 ∈ da2 }`
+    { ds | ∃l1 l2. l1 ∈ da1 ∧ l2 ∈ da2 ∧ PERM (l1++l2) ds }`
 val _ = overload_on("+",``DConcat``)
 
 val DContextApplication_def = Define`
@@ -843,14 +843,29 @@ val t12 = prove(
     simp[Once eval_prog_exp_cases] ) >>
   srw_tac[DNF_ss][] >>
   simp[Once eval_exp_cases] >>
-  simp[Once eval_prog_exp_cases] )
+  simp[Once eval_prog_exp_cases] >>
+  qho_match_abbrev_tac`∃l2 ds. PERM (D ds::l2) (CONS (D []) Y)` >>
+  `D [] :: Y = [] ++ (D [] :: Y)` by simp[] >>
+  pop_assum SUBST1_TAC >>
+  qexists_tac`Y` >> qexists_tac`[]` >>
+  match_mp_tac CONS_PERM >>
+  simp[])
 
 (* + is commutative *)
-(* Ramana: this is false too! *)
 val t13 = prove(
-  ``^dir ∈ (DDir (Name "a") (DDir (Name "c") T) + T)``,
-  rw[DDirectory_def,DConcat_def] >>
-  srw_tac[DNF_ss][])
+  ``^dir ∈ (DDir (Name "a") ((DDir (Name "c") T) + T))``,
+  rw[DDirectory_def,DConcat_def] >- (
+    simp[Once eval_exp_cases] >>
+    simp[Once eval_prog_exp_cases] ) >>
+  srw_tac[DNF_ss][] >>
+  simp[Once eval_exp_cases] >>
+  simp[Once eval_prog_exp_cases] >>
+  qho_match_abbrev_tac`∃l2 ds. PERM (D ds::l2) (CONS E (CONS (D X) Y))` >>
+  qexists_tac`E::Y` >> qexists_tac`X` >>
+  `E::D X::Y = [E] ++ D X :: Y` by simp[] >>
+  pop_assum SUBST1_TAC >>
+  match_mp_tac CONS_PERM >>
+  simp[])
 
 (*
 val subst_forest_MAP = store_thm("subst_forest_MAP",
