@@ -936,7 +936,8 @@ val t14 = prove(
   spose_not_then strip_assume_tac >>
   qunabbrev_tac`y` >>
   fs[EVERY_MEM] >>
-  reverse(Cases_on`l1`) >- (
+  qmatch_assum_rename_tac `MAP (subst 42 [Directory "G" []]) f1 = l1 ++ [[z]] ++ l2`[] >>
+  `(∃h t. l1 = h::t) ∨ l1 = []` by (Cases_on`l1`>>simp[] >> metis_tac[]) >- (
     fs[] >>
     `h = []` by metis_tac[] >>
     Cases_on`f1`>>fs[] >>
@@ -944,6 +945,7 @@ val t14 = prove(
   fs[] >> rw[] >>
   qpat_assum`MEM e f1`mp_tac >>
   Cases_on`f1`>>fs[]>>
+  qmatch_assum_rename_tac `MAP (subst 42 [Directory "G" []]) t = l2`[] >>
   reverse(Cases_on`t`) >- (
     fs[] >>
     Cases_on`l2`>>fs[]>>
@@ -951,13 +953,15 @@ val t14 = prove(
   fs[] >> rw[] >> fs[] >> rw[] >>
   spose_not_then strip_assume_tac >> rw[] >>
   imp_res_tac resolve_SOME_SOME >> fs[] >> rw[] >>
+  qmatch_assum_rename_tac`resolve p (SOME 42) e = SOME (Address 42)`[] >>
   Cases_on`p`>- (
     imp_res_tac resolve_nil_SOME >>
     fs[subst_def] >> fs[Abbr`z`] ) >>
   Cases_on`e`>>fs[resolve_def] >>
-  Cases_on`h=s`>>fs[]>>rw[]>>
+  last_x_assum mp_tac >> rw[] >>
   fs[subst_def]>>
   fs[Abbr`z`]>>
+  qmatch_rename_tac`resolve_list t (SOME 42) l ≠ SOME (Address 42)`[] >>
   Cases_on`l`>>fs[resolve_def]>>
   rw[] >>
   fs[subst_def] >>
@@ -969,85 +973,115 @@ val t14 = prove(
     imp_res_tac resolve_SOME_SOME >> fs[] >> rw[] >>
     qpat_assum`Abbrev(x=Z)`kall_tac >>
     reverse(Cases_on`x`>>fs[subst_def,resolve_def])>-(
-      Cases_on`a=n`>>fs[Abbr`vs`] ) >>
+      qpat_assum`(if X then Y else Z) = A`mp_tac >>
+      rw[]>>fs[Abbr`vs`]) >>
+    qmatch_assum_rename_tac`subst_forest a vs l = []`[] >>
     `l = []` by metis_tac[subst_forest_nil,NOT_NIL_CONS] >>
+    qmatch_assum_rename_tac`resolve t X Y = Z`["X","Y","Z"] >>
     Cases_on`t`>>fs[resolve_def] ) >>
+  qmatch_assum_rename_tac`subst_forest a vs t' = X`["X"] >>
   Cases_on`t'`>>fs[subst_def] >>
+  qmatch_assum_rename_tac`subst a vs h ++ X = Y`["X","Y"] >>
   Cases_on`subst a vs h = vs` >- ( fs[Abbr`vs`] ) >>
   `∃q. subst a vs h = [q]` by metis_tac[subst_sing_or_vs] >>
   fs[] >>
   fs[resolve_def]>>
+  qmatch_assum_rename_tac`subst_forest a vs t'' = X`["X"] >>
   Cases_on`t''`>>fs[subst_def]>>
+  qmatch_assum_rename_tac`subst a vs h'' ++ X = Y`["X","Y"] >>
   Cases_on`subst a vs h'' = vs` >- ( fs[Abbr`vs`] ) >>
   `∃r. subst a vs h'' = [r]` by metis_tac[subst_sing_or_vs] >>
   fs[] >> rw[] >>
   fs[Abbr`vs`] >> rw[] >>
+  qmatch_assum_rename_tac`subst a X h = [Directory "c" Y]`["X","Y"] >>
   reverse(Cases_on`h`>>fs[subst_def])>-(
-    Cases_on`a=n`>>fs[]) >>
+    qpat_assum`(if X then Y else Z) = A`mp_tac >>
+    rw[]) >>
   fs[resolve_def]>>
-  qpat_assum`X = SOME Y`mp_tac >>
   reverse BasicProvers.CASE_TAC >- (
     imp_res_tac resolve_SOME_SOME >>
     fs[] >>
+    qmatch_assum_rename_tac`resolve t (SOME a) h'' = SOME X`["X"] >>
     reverse(Cases_on`h''`>>fs[subst_def])>-(
-      Cases_on`a=n`>>fs[]) >>
+      qpat_assum`(if X then Y else Z) = A`mp_tac >> rw[]) >>
+    qmatch_assum_rename_tac`subst_forest a X l' = [FileLink "f" 4242]`["X"] >>
     Cases_on`l'`>>fs[subst_def]>>
     qabbrev_tac`vs = [Directory "G" []]` >>
+    qmatch_assum_rename_tac`subst a vs h ++ X = Y`["X","Y"] >>
     Cases_on`subst a vs h = vs` >- fs[Abbr`vs`]>>
     `∃z. subst a vs h = [z]` by metis_tac[subst_sing_or_vs] >>
     fs[]>>
+    qmatch_assum_rename_tac`resolve t (SOME a) x = NONE`[] >>
     Cases_on`t`>>fs[resolve_def]>>
-    Cases_on`h''=s'`>>fs[]>>
+    qpat_assum`(if X then Y else Z) = A`mp_tac >> rw[] >>
+    qmatch_assum_rename_tac`subst_forest a vs t'' = []`[] >>
     `t'' = []` by metis_tac[subst_forest_nil,NOT_NIL_CONS]>>
     fs[resolve_def]>>
     BasicProvers.EVERY_CASE_TAC>>fs[]>>rw[]>>
+    qmatch_assum_rename_tac`subst a vs h = [X]`["X"] >>
     reverse(Cases_on`h`>>fs[subst_def])>-(
-      Cases_on`a=n`>>fs[]) >>
+      qpat_assum`(if X then Y else Z) = A`mp_tac >> rw[]) >>
+    qmatch_assum_rename_tac`resolve t''' X Y = SOME Z`["X","Y","Z"] >>
     rw[]>>Cases_on`t'''`>>fs[resolve_def]) >>
   rw[] >>
+  qmatch_assum_rename_tac`resolve t (SOME a) h'' = NONE`[] >>
   reverse(Cases_on`h''`>>fs[subst_def])>-(
-    Cases_on`a=n`>>fs[])>>
+    qpat_assum`(if X then Y else Z) = A`mp_tac >> rw[]) >>
+  qmatch_assum_rename_tac`subst_forest a X l' = [FileLink "f" 4242]`["X"] >>
   Cases_on`l'`>>fs[subst_def]>>
   qabbrev_tac`vs = [Directory "G" []]` >>
+  qmatch_assum_rename_tac`subst a vs h ++ X = Y`["X","Y"] >>
   Cases_on`subst a vs h = vs` >- fs[Abbr`vs`]>>
   `∃z. subst a vs h = [z]` by metis_tac[subst_sing_or_vs] >>
   fs[]>>
+  qmatch_assum_rename_tac`subst_forest a vs t'' = []`[] >>
   `t'' = []` by metis_tac[subst_forest_nil,NOT_NIL_CONS]>>
   rw[]>>
   reverse(Cases_on`h`>>fs[subst_def])>-(
-    Cases_on`a=n`>>fs[]) >>
+    qpat_assum`(if X then Y else Z) = A`mp_tac >> rw[]) >>
   rw[]>>
+  qmatch_assum_rename_tac`subst_forest a vs t' = []`[] >>
   `t' = []` by metis_tac[subst_forest_nil,NOT_NIL_CONS]>>
   rw[resolve_def]>>
   BasicProvers.CASE_TAC>>
+  qmatch_assum_rename_tac`resolve t (SOME a) X = NONE`["X"] >>
   Cases_on`t`>>fs[resolve_def]>>
-  Cases_on`h="c"`>>fs[]>>
+  pop_assum mp_tac >> rw[] >>
+  qmatch_assum_rename_tac`resolve_list t' (SOME a) l = X`["X"] >>
   Cases_on`l`>>fs[subst_def]>>
   fs[resolve_def]>>
+  qmatch_assum_rename_tac`subst a vs h ++ X = Y`["X","Y"] >>
+  Cases_on`subst a vs h = vs` >- fs[Abbr`vs`]>>
+  `∃z. subst a vs h = [z]` by metis_tac[subst_sing_or_vs] >>
+  fs[]>>
+  qmatch_assum_rename_tac`subst_forest a vs t = X`["X"] >>
+  Cases_on`t`>>fs[resolve_def,subst_def]>>
+  qmatch_assum_rename_tac`subst a vs h'' ++ X = Y`["X","Y"] >>
   Cases_on`subst a vs h'' = vs` >- fs[Abbr`vs`]>>
   `∃z. subst a vs h'' = [z]` by metis_tac[subst_sing_or_vs] >>
   fs[]>>
-  Cases_on`t`>>fs[resolve_def,subst_def]>>
+  qmatch_assum_rename_tac`subst_forest a vs t'' = X`["X"] >>
+  Cases_on`t''`>>fs[resolve_def,subst_def]>>
+  qmatch_assum_rename_tac`subst a vs h''' ++ X = Y`["X","Y"] >>
   Cases_on`subst a vs h''' = vs` >- fs[Abbr`vs`]>>
   `∃z. subst a vs h''' = [z]` by metis_tac[subst_sing_or_vs] >>
   fs[]>>
-  Cases_on`t''`>>fs[resolve_def,subst_def]>>
-  Cases_on`subst a vs h'''' = vs` >- fs[Abbr`vs`]>>
-  `∃z. subst a vs h'''' = [z]` by metis_tac[subst_sing_or_vs] >>
-  fs[]>>
+  qmatch_assum_rename_tac`subst_forest a vs t = []`[] >>
   `t=[]` by metis_tac[subst_forest_nil,NOT_NIL_CONS]>>
   fs[resolve_def]>> rw[] >>
   reverse(Cases_on`h''`>>fs[subst_def]) >- (
-    Cases_on`a=n`>>fs[]) >>
+    qpat_assum`(if X then Y else Z) = A`mp_tac >> rw[]) >>
   rw[]>>
   reverse(Cases_on`h'''`>>fs[subst_def]) >- (
-    Cases_on`a=n`>>fs[]) >>
+    qpat_assum`(if X then Y else Z) = A`mp_tac >> rw[]) >>
   rw[]>>
-  reverse(Cases_on`h''''`>>fs[subst_def]) >- (
-    Cases_on`a=n`>>fs[]) >>
+  reverse(Cases_on`h`>>fs[subst_def]) >- (
+    qpat_assum`(if X then Y else Z) = A`mp_tac >> rw[]) >>
   rw[]>>
-  `l=[]` by metis_tac[subst_forest_nil,NOT_NIL_CONS]>>
+  qmatch_assum_rename_tac`subst_forest a vs t = []`[] >>
+  `t=[]` by metis_tac[subst_forest_nil,NOT_NIL_CONS]>>
   rw[]>>fs[]>>
+  qmatch_assum_rename_tac`resolve ("c"::t') X Y = Z`["X","Y","Z"] >>
   Cases_on`t'`>>fs[resolve_def])
 
 val t15 = prove(
