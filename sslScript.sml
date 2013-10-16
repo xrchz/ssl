@@ -1050,21 +1050,63 @@ val t14 = prove(
   rw[]>>fs[]>>
   Cases_on`t'`>>fs[resolve_def])
 
-val _ = dir ∈ (DContextApplication T 42 (DFileLink (ProgExp (Name "g")) (ProgExp (Lit (Inode 42))))) FEMPTY
-val _ = dir ∈ (DContextApplication (DDirectory (ProgExp (Name "a")) (Address 42)) 42 T) FEMPTY
-val _ = dir ∉ (DContextApplication (DDirectory (ProgExp (Name "a")) DEmpty) 42 T) FEMPTY
+val t15 = prove(
+  ``^dir ∈ (DContextApplication T 42 (DFileLink (ProgExp (Name "g")) (ProgExp (Lit (Inode 42)))))``,
+  rw[DContextApplication_def,DFileLink_def] >>
+  rw[Once eval_exp_cases] >>
+  rw[Once eval_exp_cases] >>
+  rw[Once eval_prog_exp_cases] >>
+  rw[Once eval_prog_exp_cases] >>
+  qexists_tac`[Directory "a" [Directory "b" []; Directory "c" [FileLink "d" 42; Directory "e" []; Address 42]; Directory "d" [FileLink "f" 4242]]]` >>
+  rw[subst_def] >>
+  qexists_tac`["a";"c"]` >>
+  rw[resolve_def])
+
+val t16 = prove(
+  ``^dir ∈ (DContextApplication (DDirectory (ProgExp (Name "a")) (DExp (Vals {ForestValue [Address 42]}))) 42 T)``,
+  rw[DContextApplication_def,DDirectory_def] >>
+  rw[Once eval_exp_cases] >>
+  rw[Once eval_prog_exp_cases] >>
+  rw[DExp_def] >>
+  rw[Once eval_exp_cases] >>
+  rw[values_same_type_def] >>
+  qexists_tac`[Directory "b" []; Directory "c" [FileLink "d" 42; Directory "e" []; FileLink "g" 42]; Directory "d" [FileLink "f" 4242]]` >>
+  rw[subst_def] >>
+  qexists_tac`["a"]` >>
+  rw[resolve_def])
+
+val t17 = prove(
+  ``^dir ∉ (DContextApplication (DDirectory (ProgExp (Name "a")) DEmpty) 42 T)``,
+  rw[DContextApplication_def,DDirectory_def] >>
+  rw[Once eval_exp_cases] >>
+  rw[Once eval_prog_exp_cases] >>
+  Cases_on`f1`>>rw[]>>
+  Cases_on`h`>>rw[]>>
+  Cases_on`t`>>rw[]>>
+  Cases_on`s="a"`>>rw[]>>
+  Cases_on`l ∈ ∅`>>rw[]>>
+  fs[DEmpty_def] >> rw[] >>
+  Cases_on`f2`>>rw[subst_def])
 
 (* Gian: we also need: 
    - sibling uniqueness in directory forests
-   - uniqueness of abstract addresses *)
+   - uniqueness of abstract addresses
+
+   Ramana: should these things be guaranteed in particular directory assertions? (which ones?)
+   or should they be isolated out as a separate well-formedness condition that
+   we have to state as hypothesis on most theorems?
+*)
+
+(*
+Ramana: something wrong with these - to fix later..
 
 (* instrumented directory heap cell assertions *)
 
-let state_cons env =
+val state_cons_env_def = Define`state_cons_env env =
   { <| fs := <| root := NONE; address_env := env; inode_env := FEMPTY |>
       ; heap := <| filedesc_env := FEMPTY; dirstream_env := FEMPTY; heap_env := FEMPTY |>
       ; env := FEMPTY
-    |> }
+   |> }`
 
 val _ = 
   let state = address_env_cons { 42 |-> (AbsPath ["foo"])  [] }
@@ -1081,5 +1123,19 @@ val _ =
 val _ =
   let state = address_env_cons { 42 |-> (AbsPath ["foo"])  dir }
   state ∈ DirP 41 (Lit (Path (AbsPath["foo"]))) (DDirectory (ProgExp (Name "a")) (Address 42)) 42 T)
+*)
+
+(*
+hoare triple for an axiom: A1 (Mkdir vr vp) A2
+suppose: s0 ∈ A1 and s1 ∈ A2
+
+to translate to Tom's stuff:
+take s0.fs
+
+translate Mkdir vr vp to Mkdir(evaluate vp in s0)
+
+take s1 to s1.fs
+also, take (evaluate vr in s1) and (evaluate errno in s1)
+*)
 
 val _ = export_theory()
