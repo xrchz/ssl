@@ -155,18 +155,18 @@ val resolve_def = tDefine "resolve"`
   (resolve [] (SOME a) (Address b) =
     if a = b then SOME (Address b) else NONE) ∧
 
-  (resolve (p::ps) a (Directory q ids) =
+  (resolve (p::ps) aopt (Directory q ids) =
      if p = q then
-       resolve_list ps a ids
+       resolve_list ps aopt ids
      else NONE) ∧
 
   (resolve _ _ _ = NONE) ∧
 
   (resolve_list _ _ [] = NONE) ∧
-  (resolve_list ps a (id::ids) =
-     case resolve ps a id of
+  (resolve_list ps aopt (id::ids) =
+     case resolve ps aopt id of
      | SOME x => SOME x
-     | NONE => resolve_list ps a ids)`
+     | NONE => resolve_list ps aopt ids)`
 (WF_REL_TAC`measure (λx. case x of
   | INL (_,_,ud) => directory_size ud
   | INR (_,_,ds) => directory1_size ds)`)
