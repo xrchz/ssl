@@ -269,8 +269,8 @@ val _ = overload_on("~",``λda:dir_assertion. da ⇒ F``)
 
 val DExists_def = Define`
   DExists (P : α -> dir_assertion) = { ds | ∃v. ds ∈ (P v) }`
-val _ = overload_on("?",``DExists``)
-val _ = overload_on("!",``λP : α -> dir_assertion. ¬∃v. ¬(P v)``)
+val _ = temp_overload_on("?",``DExists``)
+val _ = temp_overload_on("!",``λP : α -> dir_assertion. ¬∃v. ¬(P v)``)
 
 val _ = Hol_datatype`instrumented_filesystem =
   <| root : forest option
@@ -395,8 +395,8 @@ val _ = Parse.overload_on("~",``λa:assertion. a ⇒ F``)
 
 val Exists_def = Define`
   Exists (P : α -> assertion) = { state | ∃v. state ∈ (P v) }`
-val _ = Parse.overload_on("?",``Exists``)
-val _ = Parse.overload_on("!",``λP : α -> assertion. ¬∃v. ¬(P v)``)
+val _ = Parse.temp_overload_on("?",``Exists``)
+val _ = Parse.temp_overload_on("!",``λP : α -> assertion. ¬∃v. ¬(P v)``)
 
 val SomeVarCell_def = Define`
     SomeVarCell var = ∃v. (VarCell var (Vals {ProgValue v}))`
@@ -446,8 +446,8 @@ val _ = overload_on("VarI",``λvar int. VarCell var (ProgExp (Lit (Int int)))``)
 val _ = overload_on("DirP",``λaddr path da. DirCell addr (ProgExp path) da``)
 val _ = overload_on(":>",``λname inode. DFileLink (ProgExp name) (ProgExp inode)``)
 val _ = add_infix(":>",425,NONASSOC)
-val _ = overload_on("=",``λe1 e2. Exp (ProgExp (Equal e1 e2))``)
-val _ = overload_on("<>",``λe1 e2. Exp (ProgExp (Neg (Equal e1 e2)))``)
+val _ = temp_overload_on("=",``λe1 e2. Exp (ProgExp (Equal e1 e2))``)
+val _ = temp_overload_on("<>",``λe1 e2. Exp (ProgExp (Neg (Equal e1 e2)))``)
 val _ = Unicode.uoverload_on(Unicode.UChar.neq,``λe1 e2. Exp (ProgExp (Neg (Equal e1 e2)))``)
 
 (* mkdir *)
