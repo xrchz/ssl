@@ -116,7 +116,7 @@ string_of_path (p:path) = (ARB:string) (* FIXME *)
 *)
 
 val string_of_prog_exp_def = Define `
-string_of_prog_exp s (p:prog_exp) = (ARB:string) (* FIXME *)
+string_of_prog_exp s (p:var) = (ARB:string) (* FIXME *)
 `;
 
 
@@ -130,11 +130,11 @@ assemble (s:instrumented_state) (t:fs1) = (ARB:bool) (* FIXME *)
 
 (* written as a relation, but should probably be a function *)
 val map_triple_def = Define `
-map_triple (s,cmd,s') (t,lbl,(t',ev)) = (? path. 
+map_triple (s,cmd,s') (t,lbl,(t',ev)) = ( 
   case cmd of
   | Mkdir r p => (    
     (assemble s t) 
-    /\ (lbl = MKDIR(string_of_prog_exp s path,dummy_perms))
+    /\ (lbl = MKDIR(string_of_prog_exp s p,dummy_perms))
     /\ (assemble s' t') 
     /\ (case s' IN (VarI r 0) of 
       (* success case *)
