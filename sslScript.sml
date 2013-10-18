@@ -136,6 +136,50 @@ val _ = Hol_datatype`directory =
   | Directory of name => directory list
   | Address of address`
 
+val entry_name_def = Define`
+  (entry_name (FileLink n _) = SOME n) ∧
+  (entry_name (Directory n _) = SOME n) ∧
+  (entry_name (Address _) = NONE)`
+
+val wf_directory_names_list_def = Define`
+  (wf_directory_names_list [] (names: name set) = TRUE) ∧
+  
+  (wf_directory_names_list h::t names = 
+    if entry_name h = SOME n ∧ n ∉ names then wf_directory_names_list t ({ n } ∪ names)
+    else if entry_name h = SOME n ∧ n ∈ names then FALSE
+    else wf_directory_names_list t names)`
+
+val wf_directory_names_def = Define`
+  (wf_directory_names (FileLink _ _) = TRUE) ∧
+  (wf_directory_names (Address _) = TRUE) ∧
+  (wf_directory_names (Directory _ []) = TRUE) ∧
+  (wf_directory_names (Directory n entries) =
+    (wf_directory_names_list entries { }) ∧
+    FORALL wf_directory_names entries)`
+(*Gian: I expect something like: FORALL: ('a -> bool) ('a list) -> bool
+  and wf_directory_names: directory -> bool *)
+
+val directory_addresses_set_Def = Define`
+  (directory_addresses_set (FileLink _ _) = { }) ∧
+  (directory_addresses_set (Directory _ []) = { }) ∧
+  (directory_addresses_set (Directory n h::t) =
+    (directory_addresses_set h) ∪ (directory_addresses_set (Directory n t)))
+  (directory_addresses_set (Address a) = { a })`
+
+val wf_directory_addresses_def = Define`
+  (wf_directory_addresses (FileLink _ _) = TRUE) ∧
+  (wf_directory_addresses (Directory _ []) = TRUE) ∧
+  (wf_directory_addresses (Directory n h::t) =
+    FORALL (λy. (directory_addresses h) ∩ (directory_addresses y) = { }) t ∧
+    wf_directory_addresses h ∧
+    wf_directory_addresses (Directory n t)) ∧
+  (wf_directory_addresses (Address _) = TRUE`
+(* Gian: I assume FORALL: ('a -> bool) ('a list) -> bool *)
+    
+
+val wf_directory_def = Define`
+  wf_directory d = (wf_directory_address d) ∧ (wf_directory_names d)`
+
 val _ = type_abbrev("forest",``:directory list``)
 
 val subst_def = xDefine "subst"`
@@ -226,36 +270,40 @@ val _ = type_abbrev("env",``:var |-> prog_value``)
 
 val _ = type_abbrev("dir_assertion",``:forest set``)
 
-val DEmpty_def = Define`DEmpty = { [] }`
+val DEmpty_def = Define`DEmpty = { [] }` (* always well formed *)
 val _ = overload_on("∅",``DEmpty``)
 
 val DFileLink_def = Define`
   DFileLink e1 e2 = { [FileLink n b] |
     eval_exp e1 {ProgValue (NameVal n)} ∧
-    eval_exp e2 {ProgValue (Inode b)}}`
+    eval_exp e2 {ProgValue (Inode b)}}` (* always well formed *)
 
 val DDirectory_def = Define`
   DDirectory e (da:dir_assertion) = { [Directory n ds] |
     eval_exp e {ProgValue (NameVal n)} ∧
-    ds ∈ da }`
+    ds ∈ da ∧ 
+    wf_directory ds }`
 
 val DExp_def = Define`
-  DExp exp = { ds | ∃vs. eval_exp exp vs ∧ (ForestValue ds) ∈ vs }`
+  DExp exp = { ds | ∃vs. eval_exp exp vs ∧ (ForestValue ds) ∈ vs ∧ wf_directory ds }`
 
 val DConcat_def = Define`
   DConcat (da1:dir_assertion) (da2:dir_assertion) =
-    { ds | ∃l1 l2. l1 ∈ da1 ∧ l2 ∈ da2 ∧ PERM (l1++l2) ds }`
+    { ds | ∃l1 l2. l1 ∈ da1 ∧ l2 ∈ da2 ∧ PERM (l1++l2) ds ∧ wf_directory ds }`
 val _ = overload_on("+",``DConcat``)
 
 val DContextApplication_def = Define`
   DContextApplication (da1:dir_assertion) addr (da2:dir_assertion) =
-    { subst_forest addr f2 f1 | (f2,f1) | f1 ∈ da1 ∧ f2 ∈ da2 ∧ (∃p. EXISTS (λd. IS_SOME (resolve p (SOME addr) d)) f1) }`
+(* Keeping in comment in case what i've done is stupid *)
+(*    { subst_forest addr f2 f1 | (f2,f1) | f1 ∈ da1 ∧ f2 ∈ da2 ∧ (∃p. EXISTS (λd. IS_SOME (resolve p (SOME addr) d)) f1) }` *)
+    { ds | ds = subst_forest addr f2 f1 ∧ f1 ∈ da1 ∧ f2 ∈ da2 ∧ (∃p. EXISTS (λd. IS_SOME (resolve p (SOME addr) d)) f1) ∧ wf_directory ds }`
 
 val DPathResolution_def = Define`
   DPathResolution exp env = { ds |
     ∃p ps a.
     eval_exp exp {PathValue (RelPath p ps,a)} ∧
-    EXISTS IS_SOME (MAP (resolve (p::ps) a) ds) }`
+    EXISTS IS_SOME (MAP (resolve (p::ps) a) ds) ∧
+    wf_directory ds }`
 
 val DLift_def = Define`
   DLift f (da1:dir_assertion) da2 = { ds | f (ds ∈ da1) (ds ∈ da2) }`
@@ -1129,7 +1177,11 @@ val t17 = prove(
    Ramana: should these things be guaranteed in particular directory assertions? (which ones?)
    or should they be isolated out as a separate well-formedness condition that
    we have to state as hypothesis on most theorems?
+
+   Gian: These should be guaranteed by the interpretation of directory assertions.
 *)
+
+
 
 (*
 Ramana: something wrong with these - to fix later..
