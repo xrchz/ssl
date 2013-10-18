@@ -1292,4 +1292,15 @@ take s1 to s1.fs
 also, take (evaluate vr in s1) and (evaluate errno in s1)
 *)
 
+val reification_single_def = Define`
+  reification_single is = { state |
+    ∃ ifs. collapse^* (ifs_compose is.fs ifs) state.fs ∧
+    complete_ifs state.fs ∧
+    state.heap = is.heap ∧
+    state.env = is.env }`
+
+val reification_def = Define`
+  reification iss = FOLD (λs.λx. s ∪ (reification_single x)) { } iss`
+    
+
 val _ = export_theory()
