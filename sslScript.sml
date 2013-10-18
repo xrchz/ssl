@@ -136,49 +136,60 @@ val _ = Hol_datatype`directory =
   | Directory of name => directory list
   | Address of address`
 
+(* GIAN: well formedness of directory values *)
+
+(* extract name from an entry *)
 val entry_name_def = Define`
   (entry_name (FileLink n _) = SOME n) ∧
   (entry_name (Directory n _) = SOME n) ∧
   (entry_name (Address _) = NONE)`
 
+(* are the names in a forest distinct? *)
 val wf_directory_names_list_def = Define`
   (wf_directory_names_list [] (names: name set) = TRUE) ∧
-  
   (wf_directory_names_list h::t names = 
     if entry_name h = SOME n ∧ n ∉ names then wf_directory_names_list t ({ n } ∪ names)
     else if entry_name h = SOME n ∧ n ∈ names then FALSE
     else wf_directory_names_list t names)`
 
-val wf_directory_names_def = Define`
+(* sibling name uniqueness for an entire directory tree *)
+val wf_forest_names_def = xDefine "wf_directory_names"`
   (wf_directory_names (FileLink _ _) = TRUE) ∧
   (wf_directory_names (Address _) = TRUE) ∧
-  (wf_directory_names (Directory _ []) = TRUE) ∧
-  (wf_directory_names (Directory n entries) =
-    (wf_directory_names_list entries { }) ∧
-    FORALL wf_directory_names entries)`
+  (wf_directory_names (Directory _ ds) = wf_forest_names ds) ∧
+  (wf_forest_names ds = 
+    wf_directory_names_list ds { } ∧
+    FORALL wf_directory_names ds)
 (*Gian: I expect something like: FORALL: ('a -> bool) ('a list) -> bool
   and wf_directory_names: directory -> bool *)
 
-val directory_addresses_set_Def = Define`
-  (directory_addresses_set (FileLink _ _) = { }) ∧
-  (directory_addresses_set (Directory _ []) = { }) ∧
-  (directory_addresses_set (Directory n h::t) =
-    (directory_addresses_set h) ∪ (directory_addresses_set (Directory n t)))
-  (directory_addresses_set (Address a) = { a })`
+(* set of addresses in a directory tree *)
+val directory_address_set_def = Define`
+  (directory_address_set (FileLink _ _) = { }) ∧
+  (directory_address_set (Directory _ []) = { }) ∧
+  (directory_address_set (Directory n h::t) =
+    (directory_address_set h) ∪ (directory_address_set (Directory n t)))
+  (directory_address_set (Address a) = { a })`
 
-val wf_directory_addresses_def = Define`
+val forest_address_set_def = Define`
+  forest_address_set ds = FOLD (λs.λx. s ∪ (directory_address_set x)) { } ds`
+(* GIAN: I assume FOLD: ('s -> 'a -> 's) -> 's -> 'a list *)
+
+(* distinct addresses in a directory tree *)
+val wf_forest_addresses_def = xDefine "wf_directory_addresses"`
   (wf_directory_addresses (FileLink _ _) = TRUE) ∧
-  (wf_directory_addresses (Directory _ []) = TRUE) ∧
-  (wf_directory_addresses (Directory n h::t) =
-    FORALL (λy. (directory_addresses h) ∩ (directory_addresses y) = { }) t ∧
+  (wf_directory_addresses (Directory ds) = wf_forest_addresses ds) ∧
+  (wf_directory_addresses (Address _) = TRUE
+  (wf_forest_addresses [] = TRUE) ∧
+  (wf_forest_addresses h::t =
+    FORALL (λy. (directory_address_set h) ∩ (directory_address_set y) = { }) t ∧
     wf_directory_addresses h ∧
-    wf_directory_addresses (Directory n t)) ∧
-  (wf_directory_addresses (Address _) = TRUE`
-(* Gian: I assume FORALL: ('a -> bool) ('a list) -> bool *)
-    
+    wf_forest_addresses t)`
+(* Gian: I assume FORALL: ('a -> bool) ('a list) -> bool *)   
 
-val wf_directory_def = Define`
-  wf_directory d = (wf_directory_address d) ∧ (wf_directory_names d)`
+val wf_forest_def = Define`
+  wf_forest ds = (wf_forest_addresses ds) ∧ (wf_forest_names ds)`
+(* end directory well formedness *)
 
 val _ = type_abbrev("forest",``:directory list``)
 
@@ -282,28 +293,28 @@ val DDirectory_def = Define`
   DDirectory e (da:dir_assertion) = { [Directory n ds] |
     eval_exp e {ProgValue (NameVal n)} ∧
     ds ∈ da ∧ 
-    wf_directory ds }`
+    wf_forest ds }`
 
 val DExp_def = Define`
-  DExp exp = { ds | ∃vs. eval_exp exp vs ∧ (ForestValue ds) ∈ vs ∧ wf_directory ds }`
+  DExp exp = { ds | ∃vs. eval_exp exp vs ∧ (ForestValue ds) ∈ vs ∧ wf_forest ds }`
 
 val DConcat_def = Define`
   DConcat (da1:dir_assertion) (da2:dir_assertion) =
-    { ds | ∃l1 l2. l1 ∈ da1 ∧ l2 ∈ da2 ∧ PERM (l1++l2) ds ∧ wf_directory ds }`
+    { ds | ∃l1 l2. l1 ∈ da1 ∧ l2 ∈ da2 ∧ PERM (l1++l2) ds ∧ wf_forest ds }`
 val _ = overload_on("+",``DConcat``)
 
 val DContextApplication_def = Define`
   DContextApplication (da1:dir_assertion) addr (da2:dir_assertion) =
 (* Keeping in comment in case what i've done is stupid *)
 (*    { subst_forest addr f2 f1 | (f2,f1) | f1 ∈ da1 ∧ f2 ∈ da2 ∧ (∃p. EXISTS (λd. IS_SOME (resolve p (SOME addr) d)) f1) }` *)
-    { ds | ds = subst_forest addr f2 f1 ∧ f1 ∈ da1 ∧ f2 ∈ da2 ∧ (∃p. EXISTS (λd. IS_SOME (resolve p (SOME addr) d)) f1) ∧ wf_directory ds }`
+    { ds | ds = subst_forest addr f2 f1 ∧ f1 ∈ da1 ∧ f2 ∈ da2 ∧ (∃p. EXISTS (λd. IS_SOME (resolve p (SOME addr) d)) f1) ∧ wf_forest ds }`
 
 val DPathResolution_def = Define`
   DPathResolution exp env = { ds |
     ∃p ps a.
     eval_exp exp {PathValue (RelPath p ps,a)} ∧
     EXISTS IS_SOME (MAP (resolve (p::ps) a) ds) ∧
-    wf_directory ds }`
+    wf_forest ds }`
 
 val DLift_def = Define`
   DLift f (da1:dir_assertion) da2 = { ds | f (ds ∈ da1) (ds ∈ da2) }`
@@ -338,6 +349,69 @@ val _ = Hol_datatype`instrumented_state =
    ; env : env
    |>`
 
+val root_compose_def = Define`
+  (root_compose NONE     NONE     x ⇔ (x = NONE)  ) ∧
+  (root_compose NONE     (SOME y) x ⇔ (x = SOME y)) ∧
+  (root_compose (SOME y) NONE     x ⇔ (x = SOME y)) ∧
+  (root_compose (SOME _) (SOME _) _ ⇔ F)`
+
+val dfunion_def = Define`
+  dfunion f1 f2 f3 ⇔ DISJOINT (FDOM f1) (FDOM f2) ∧ f3 = (f1 ⊌ f2)`
+
+val ifs_compose_def = Define`
+  (root_compose root1 root2 root3 ∧
+  dfunion address_env1 address_env2 address_env3 ∧
+  dfunion inode_env1 inode_env2 inode_env3)
+  ⇔
+  ifs_compose <| root := root1; address_env := address_env1; inode_env := inode_env1 |>
+              <| root := root2; address_env := address_env2; inode_env := inode_env2 |>
+              <| root := root3; address_env := address_env3; inode_env := inode_env3 |>`
+    
+
+(* instrumented directory heaps well - formedness *)
+
+(*Gian: this should be a relation *)
+val something_goes_here = Hol_reln`
+  ((∃x y.
+   FLOOKUP ifs1.address_env x = SOME (px, dsx) ∧
+   FLOOKUP ifs2.address_env y = SOME (py, dsy) ∧
+   y ∈ forest_address_set dsx ∧
+   ∃q. py = path_concat px q ∧
+   resolve q dsx = SOME (Address y) ∧
+  (* extend h1 with the mapping x |-> ... and remove y from domain *)
+   ifs2.address_env = ifs1.address_env[x |-> (px, subst_forest y dsy dsx)]/{y}) ∨
+  (* case when we collapse to the root *)
+  (∃ds y.
+   ifs1.root = SOME ds ∧
+   FLOOKUP ifs2.address_env y = SOME (py, dsy) ∧
+   y ∈ forest_address_set ds ∧
+   resolve py ds = SOME (Address y) ∧
+   ifs2.root = subst_forest y dsy ifs1.root ∧
+   ifs2.address_env = ifs1.address_env / {y}))
+  ⇒
+  collapse ifs1 ifs2`
+
+val inodes_in_forest_def = xDefine "inodes_in_directory"`
+  inodes_in_directory (FileLink n i) = { i } ∧
+  inodes_in_directory (Address _) = { } ∧
+  inodes_in_directory (Directory _ ds) = inodes_in_forest ds ∧
+  inodes_in_forest [] = { } ∧
+  inodes_in_forest h::t = (inodes_in_directory h) ∪ (inodes_in_forest t)`
+
+val complete_ifs_def = Define`
+  complete_ifs ifs = 
+    ifs.address_env = FEMPTY ∧
+    ifs.root = SOME ds ∧
+    forest_address_set ds = { } ∧
+    wf_forest ds ∧
+    (inodes_in_forest ds) ⊆ (FDOMAIN ifs.inode_env)` (* let FDOMAIN f be the domain of f *)
+
+val wf_ifs_def = Define`
+  wf_ifs ifs = (* GIAN: collapse^* is the reflexive transitive closure of collapse *)
+    ∃ifs1 ifs2. collapse^* (ifs_compose ifs ifs1) ifs2 ∧
+    complete_ifs ifs2`
+
+
 val _ = type_abbrev("assertion",``:instrumented_state set``)
 
 val Empty_def = Define`
@@ -352,12 +426,14 @@ val DirCell_def = Define`
     ∃ap ds.
     FLOOKUP state.fs.address_env addr = SOME (ap,ds) ∧
     eval_exp path_exp {PathValue ap} ∧
-    ds ∈ da }`
+    ds ∈ da ∧
+    wf_ifs fs}`
 
 val RootCell_def = Define`
   RootCell da = { state |
     ∃ds. state.fs.root = SOME ds ∧
-    ds ∈ da }`
+    ds ∈ da ∧
+    wf_ifs fs}`
 
 val FileCell_def = Define`
   FileCell inode_exp bytes_exp env = { state |
@@ -408,15 +484,6 @@ val VarCell_def = Define`
 val Exp_def = Define`
   Exp exp = { state | state | eval_exp exp {ProgValue (Bool T)} }`
 
-val root_compose_def = Define`
-  (root_compose NONE     NONE     x ⇔ (x = NONE)  ) ∧
-  (root_compose NONE     (SOME y) x ⇔ (x = SOME y)) ∧
-  (root_compose (SOME y) NONE     x ⇔ (x = SOME y)) ∧
-  (root_compose (SOME _) (SOME _) _ ⇔ F)`
-
-val dfunion_def = Define`
-  dfunion f1 f2 f3 ⇔ DISJOINT (FDOM f1) (FDOM f2) ∧ f3 = (f1 ⊌ f2)`
-
 val Star_def = Define`
   Star a1 a2 = { state |
     ∃fs1 fs2 h1 h2 env1 env2.
@@ -428,7 +495,8 @@ val Star_def = Define`
       dfunion      h1.heap_env       h2.heap_env       state.heap.heap_env ∧
       dfunion      env1              env2              state.env ∧
       <| fs:=fs1; heap:=h1; env:=env1 |> ∈ a1 ∧
-      <| fs:=fs2; heap:=h2; env:=env2 |> ∈ a2 }`
+      <| fs:=fs2; heap:=h2; env:=env2 |> ∈ a2 ∧
+      wf_ifs state.fs }`
 val _ = Parse.overload_on("*",``Star``)
 
 val Lift_def = Define`
