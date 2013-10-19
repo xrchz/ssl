@@ -136,62 +136,38 @@ val _ = Hol_datatype`directory =
   | Directory of name => directory list
   | Address of address`
 
-(* GIAN: well formedness of directory values *)
+val _ = type_abbrev("forest",``:directory list``)
 
-(* extract name from an entry *)
-val entry_name_def = Define`
-  (entry_name (FileLink n _) = SOME n) ∧
-  (entry_name (Directory n _) = SOME n) ∧
-  (entry_name (Address _) = NONE)`
+(* well formedness of directory values *)
 
-(* are the names in a forest distinct? *)
-val wf_directory_names_list_def = Define`
-  (wf_directory_names_list [] (names: name set) = TRUE) ∧
-  (wf_directory_names_list h::t names = 
-    if entry_name h = SOME n ∧ n ∉ names then wf_directory_names_list t ({ n } ∪ names)
-    else if entry_name h = SOME n ∧ n ∈ names then FALSE
-    else wf_directory_names_list t names)`
+(* list of names in a directory tree *)
+val directory_names_def = Define`
+  (directory_names (FileLink n _) = [n]) ∧
+  (directory_names (Directory n ds) = n::forest_names ds) ∧
+  (directory_names (Address _) = []) ∧
+  (forest_names [] = []) ∧
+  (forest_names (d::ds) = directory_names d ++ forest_names ds)`
 
 (* sibling name uniqueness for an entire directory tree *)
-val wf_forest_names_def = xDefine "wf_directory_names"`
-  (wf_directory_names (FileLink _ _) = TRUE) ∧
-  (wf_directory_names (Address _) = TRUE) ∧
-  (wf_directory_names (Directory _ ds) = wf_forest_names ds) ∧
-  (wf_forest_names ds = 
-    wf_directory_names_list ds { } ∧
-    FORALL wf_directory_names ds)
-(*Gian: I expect something like: FORALL: ('a -> bool) ('a list) -> bool
-  and wf_directory_names: directory -> bool *)
+val _ = overload_on("wf_directory_names",``λd. ALL_DISTINCT (directory_names d)``)
+val _ = overload_on("wf_forest_names",``λds. ALL_DISTINCT (forest_names ds)``)
 
-(* set of addresses in a directory tree *)
-val directory_address_set_def = Define`
-  (directory_address_set (FileLink _ _) = { }) ∧
-  (directory_address_set (Directory _ []) = { }) ∧
-  (directory_address_set (Directory n h::t) =
-    (directory_address_set h) ∪ (directory_address_set (Directory n t)))
-  (directory_address_set (Address a) = { a })`
-
-val forest_address_set_def = Define`
-  forest_address_set ds = FOLD (λs.λx. s ∪ (directory_address_set x)) { } ds`
-(* GIAN: I assume FOLD: ('s -> 'a -> 's) -> 's -> 'a list *)
+(* list of addresses in a directory tree *)
+val directory_addresses_def = Define`
+  (directory_addresses (FileLink _ _) = []) ∧
+  (directory_addresses (Directory _ ds) = forest_addresses ds) ∧
+  (directory_addresses (Address a) = [a]) ∧
+  (forest_addresses [] = []) ∧
+  (forest_addresses (d::ds) = directory_addresses d ++ forest_addresses ds)`
 
 (* distinct addresses in a directory tree *)
-val wf_forest_addresses_def = xDefine "wf_directory_addresses"`
-  (wf_directory_addresses (FileLink _ _) = TRUE) ∧
-  (wf_directory_addresses (Directory ds) = wf_forest_addresses ds) ∧
-  (wf_directory_addresses (Address _) = TRUE
-  (wf_forest_addresses [] = TRUE) ∧
-  (wf_forest_addresses h::t =
-    FORALL (λy. (directory_address_set h) ∩ (directory_address_set y) = { }) t ∧
-    wf_directory_addresses h ∧
-    wf_forest_addresses t)`
-(* Gian: I assume FORALL: ('a -> bool) ('a list) -> bool *)   
+val _ = overload_on("wf_directory_addresses",``λd. ALL_DISTINCT (directory_addresses d)``)
+val _ = overload_on("wf_forest_addresses",``λds. ALL_DISTINCT (forest_addresses ds)``)
 
 val wf_forest_def = Define`
-  wf_forest ds = (wf_forest_addresses ds) ∧ (wf_forest_names ds)`
-(* end directory well formedness *)
+  wf_forest ds ⇔ wf_forest_addresses ds ∧ wf_forest_names ds`
 
-val _ = type_abbrev("forest",``:directory list``)
+(* end directory well formedness *)
 
 val subst_def = xDefine "subst"`
   subst a vs (FileLink n i) = [FileLink n i] ∧
