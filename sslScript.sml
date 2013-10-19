@@ -343,25 +343,27 @@ val ifs_compose_def = Define`
 (* instrumented directory heaps well - formedness *)
 
 (*Gian: this should be a relation *)
-val something_goes_here = Hol_reln`
-  ((∃x y.
-   FLOOKUP ifs1.address_env x = SOME (px, dsx) ∧
+val (collapse_rules,collapse_ind,collapse_cases) = Hol_reln`
+  (FLOOKUP ifs1.address_env x = SOME (px, dsx) ∧
    FLOOKUP ifs2.address_env y = SOME (py, dsy) ∧
-   y ∈ forest_address_set dsx ∧
-   ∃q. py = path_concat px q ∧
+   MEM y (forest_addresses dsx) ∧
+   (* Ramana: What about the address options in SND px and SND py? *)
+   SOME (FST py) = path_concat (FST px) q ∧
+   (* Ramana: This doesn't work: q is a path, but resolve takes a relpath *)
    resolve q dsx = SOME (Address y) ∧
-  (* extend h1 with the mapping x |-> ... and remove y from domain *)
-   ifs2.address_env = ifs1.address_env[x |-> (px, subst_forest y dsy dsx)]/{y}) ∨
-  (* case when we collapse to the root *)
-  (∃ds y.
-   ifs1.root = SOME ds ∧
+   (* Ramana: if x = y, the map won't be extended - is that correct? *)
+   ifs2.address_env = ifs1.address_env |+ (x,(px,subst_forest y dsy dsx)) \\ y
+   ⇒
+   collapse ifs1 ifs2) ∧
+
+  (ifs1.root = SOME ds ∧
    FLOOKUP ifs2.address_env y = SOME (py, dsy) ∧
-   y ∈ forest_address_set ds ∧
+   MEM y (forest_addresses ds) ∧
    resolve py ds = SOME (Address y) ∧
-   ifs2.root = subst_forest y dsy ifs1.root ∧
-   ifs2.address_env = ifs1.address_env / {y}))
-  ⇒
-  collapse ifs1 ifs2`
+   ifs2.root = SOME (subst_forest y dsy ds) ∧
+   ifs2.address_env = ifs1.address_env \\ y
+   ⇒
+   collapse ifs1 ifs2)`
 
 val inodes_in_forest_def = xDefine "inodes_in_directory"`
   inodes_in_directory (FileLink n i) = { i } ∧
