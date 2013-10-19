@@ -335,13 +335,10 @@ val dfunion_def = Define`
   dfunion f1 f2 f3 ⇔ DISJOINT (FDOM f1) (FDOM f2) ∧ f3 = (f1 ⊌ f2)`
 
 val ifs_compose_def = Define`
-  (root_compose root1 root2 root3 ∧
-  dfunion address_env1 address_env2 address_env3 ∧
-  dfunion inode_env1 inode_env2 inode_env3)
-  ⇔
-  ifs_compose <| root := root1; address_env := address_env1; inode_env := inode_env1 |>
-              <| root := root2; address_env := address_env2; inode_env := inode_env2 |>
-              <| root := root3; address_env := address_env3; inode_env := inode_env3 |>`
+  ifs_compose ifs1 ifs2 ifs3 ⇔
+  root_compose ifs1.root ifs2.root ifs3.root ∧
+  dfunion ifs1.address_env ifs2.address_env ifs3.address_env ∧
+  dfunion ifs1.inode_env ifs2.inode_env ifs3.inode_env`
 
 (* instrumented directory heaps well - formedness *)
 
