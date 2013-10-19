@@ -268,8 +268,8 @@ val DFileLink_def = Define`
 val DDirectory_def = Define`
   DDirectory e (da:dir_assertion) = { [Directory n ds] |
     eval_exp e {ProgValue (NameVal n)} ∧
-    ds ∈ da ∧ 
-    wf_forest ds }`
+    ds ∈ da ∧
+    wf_forest [Directory n ds] }`
 
 val DExp_def = Define`
   DExp exp = { ds | ∃vs. eval_exp exp vs ∧ (ForestValue ds) ∈ vs ∧ wf_forest ds }`
@@ -281,9 +281,9 @@ val _ = overload_on("+",``DConcat``)
 
 val DContextApplication_def = Define`
   DContextApplication (da1:dir_assertion) addr (da2:dir_assertion) =
-(* Keeping in comment in case what i've done is stupid *)
-(*    { subst_forest addr f2 f1 | (f2,f1) | f1 ∈ da1 ∧ f2 ∈ da2 ∧ (∃p. EXISTS (λd. IS_SOME (resolve p (SOME addr) d)) f1) }` *)
-    { ds | ds = subst_forest addr f2 f1 ∧ f1 ∈ da1 ∧ f2 ∈ da2 ∧ (∃p. EXISTS (λd. IS_SOME (resolve p (SOME addr) d)) f1) ∧ wf_forest ds }`
+    { ds | ∃f1 f2. ds = subst_forest addr f2 f1 ∧ f1 ∈ da1 ∧ f2 ∈ da2
+                   ∧ (∃p. EXISTS (λd. IS_SOME (resolve p (SOME addr) d)) f1)
+                   ∧ wf_forest ds }`
 
 val DPathResolution_def = Define`
   DPathResolution exp env = { ds |
@@ -293,7 +293,7 @@ val DPathResolution_def = Define`
     wf_forest ds }`
 
 val DLift_def = Define`
-  DLift f (da1:dir_assertion) da2 = { ds | f (ds ∈ da1) (ds ∈ da2) }`
+  DLift f (da1:dir_assertion) da2 = { ds | wf_forest ds ∧ f (ds ∈ da1) (ds ∈ da2) }`
 val _ = overload_on("/\\",``DLift $/\``)
 val _ = overload_on("\\/",``DLift $\/``)
 val _ = overload_on("F",``({}):dir_assertion``)
@@ -303,7 +303,7 @@ val _ = overload_on("<=>",``DLift $<=>``)
 val _ = overload_on("~",``λda:dir_assertion. da ⇒ F``)
 
 val DExists_def = Define`
-  DExists (P : α -> dir_assertion) = { ds | ∃v. ds ∈ (P v) }`
+  DExists (P : α -> dir_assertion) = { ds | wf_forest ds ∧ ∃v. ds ∈ (P v) }`
 val _ = temp_overload_on("?",``DExists``)
 val _ = temp_overload_on("!",``λP : α -> dir_assertion. ¬∃v. ¬(P v)``)
 
@@ -342,7 +342,6 @@ val ifs_compose_def = Define`
   ifs_compose <| root := root1; address_env := address_env1; inode_env := inode_env1 |>
               <| root := root2; address_env := address_env2; inode_env := inode_env2 |>
               <| root := root3; address_env := address_env3; inode_env := inode_env3 |>`
-    
 
 (* instrumented directory heaps well - formedness *)
 
