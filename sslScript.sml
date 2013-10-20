@@ -348,10 +348,19 @@ val (collapse_rules,collapse_ind,collapse_cases) = Hol_reln`
    FLOOKUP ifs2.address_env y = SOME (py, dsy) ∧
    MEM y (forest_addresses dsx) ∧
    (* Ramana: What about the address options in SND px and SND py? *)
-   SOME (FST py) = path_concat (FST px) q ∧
+   (* Gian: The problem here is that path_concat is only defined on path
+      and not abstract_path (path # address option). 
+      We can get around this with some massging: path_concat the path bits 
+      and require consistency on the address bit. *)
+   (* SOME (FST py) = path_concat (FST px) q ∧ *)
+   SOME (FST py) = path_concat (FST px) (FST q) ∧
+   SND q = SND py ∧
    (* Ramana: This doesn't work: q is a path, but resolve takes a relpath *)
-   resolve q dsx = SOME (Address y) ∧
+   (* Gian: OK, we need to do some massaging to use resolve *)
+   (* resolve q dsx = SOME (Address y) ∧ *)
+   resolve (FST q) (SND q) = SOME (Address y) ∧
    (* Ramana: if x = y, the map won't be extended - is that correct? *)
+   (* Gian: Yes that is correct. *)
    ifs2.address_env = ifs1.address_env |+ (x,(px,subst_forest y dsy dsx)) \\ y
    ⇒
    collapse ifs1 ifs2) ∧
@@ -359,7 +368,9 @@ val (collapse_rules,collapse_ind,collapse_cases) = Hol_reln`
   (ifs1.root = SOME ds ∧
    FLOOKUP ifs2.address_env y = SOME (py, dsy) ∧
    MEM y (forest_addresses ds) ∧
-   resolve py ds = SOME (Address y) ∧
+   (* Gian: I guess we have the same issue with resolve as above. *)
+   (* resolve py ds = SOME (Address y) ∧ *)
+   resolve (FST py) (SND py) = SOME (Address y) ∧
    ifs2.root = SOME (subst_forest y dsy ds) ∧
    ifs2.address_env = ifs1.address_env \\ y
    ⇒
