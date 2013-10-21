@@ -202,6 +202,11 @@ val resolve_def = tDefine "resolve"`
   | INL (_,_,ud) => directory_size ud
   | INR (_,_,ds) => directory1_size ds)`)
 
+val resolve_path_def = Define`
+  resolve_path EmptyPath a d = resolve_list [] a d ∧
+  resolve_path (AbsPath ps) a d = resolve_list ps a d ∧
+  resolve_path (RelPath p ps) a d = resolve_list (p::ps) a d`
+
 val _ = Hol_datatype `value =
     ProgValue of prog_value
   | ForestValue of forest
@@ -347,20 +352,9 @@ val (collapse_rules,collapse_ind,collapse_cases) = Hol_reln`
   (FLOOKUP ifs1.address_env x = SOME (px, dsx) ∧
    FLOOKUP ifs2.address_env y = SOME (py, dsy) ∧
    MEM y (forest_addresses dsx) ∧
-   (* Ramana: What about the address options in SND px and SND py? *)
-   (* Gian: The problem here is that path_concat is only defined on path
-      and not abstract_path (path # address option). 
-      We can get around this with some massging: path_concat the path bits 
-      and require consistency on the address bit. *)
-   (* SOME (FST py) = path_concat (FST px) q ∧ *)
    SOME (FST py) = path_concat (FST px) (FST q) ∧
    SND q = SND py ∧
-   (* Ramana: This doesn't work: q is a path, but resolve takes a relpath *)
-   (* Gian: OK, we need to do some massaging to use resolve *)
-   (* resolve q dsx = SOME (Address y) ∧ *)
-   resolve (FST q) (SND q) = SOME (Address y) ∧
-   (* Ramana: if x = y, the map won't be extended - is that correct? *)
-   (* Gian: Yes that is correct. *)
+   resolve_path (FST q) (SND q) dsx = SOME (Address y) ∧
    ifs2.address_env = ifs1.address_env |+ (x,(px,subst_forest y dsy dsx)) \\ y
    ⇒
    collapse ifs1 ifs2) ∧
@@ -368,9 +362,7 @@ val (collapse_rules,collapse_ind,collapse_cases) = Hol_reln`
   (ifs1.root = SOME ds ∧
    FLOOKUP ifs2.address_env y = SOME (py, dsy) ∧
    MEM y (forest_addresses ds) ∧
-   (* Gian: I guess we have the same issue with resolve as above. *)
-   (* resolve py ds = SOME (Address y) ∧ *)
-   resolve (FST py) (SND py) = SOME (Address y) ∧
+   resolve_path (FST py) (SND py) ds = SOME (Address y) ∧
    ifs2.root = SOME (subst_forest y dsy ds) ∧
    ifs2.address_env = ifs1.address_env \\ y
    ⇒
