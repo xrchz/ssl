@@ -424,9 +424,9 @@ val Empty_def = Define`
 
 val DirCell_def = Define`
   DirCell addr path_exp da = { state |
-    ∃ap ds.
-    FLOOKUP state.fs.address_env addr = SOME (ap,ds) ∧
-    eval_exp path_exp {PathValue ap} ∧
+    ∃p ds.
+    FLOOKUP state.fs.address_env addr = SOME ((p,SOME addr),ds) ∧
+    eval_exp path_exp {ProgValue (Path p)} ∧
     ds ∈ da ∧
     wf_ifs state.fs}`
 
