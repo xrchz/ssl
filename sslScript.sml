@@ -412,10 +412,13 @@ val wf_ifs_def = Define`
 
 val _ = type_abbrev("assertion",``:instrumented_state set``)
 
+val empty_heap_def = Define`
+  empty_heap = <| filedesc_env := FEMPTY; dirstream_env := FEMPTY; heap_env := FEMPTY |>`
+
 val Empty_def = Define`
   Empty
     = { <| fs := <| root := NONE; address_env := FEMPTY; inode_env := FEMPTY |>
-         ; heap := <| filedesc_env := FEMPTY; dirstream_env := FEMPTY; heap_env := FEMPTY |>
+         ; heap := empty_heap
          ; env := FEMPTY
          |> }`
 
