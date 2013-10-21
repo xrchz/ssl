@@ -1,0 +1,19 @@
+- fix the return value for commands 
+  - this should make reification possible, and also
+  - this should make the labels the same datatype
+
+- look at the relevant views framework properties for: reification, interpretation of labels, and the axioms (i.e. everything in the main soundness theorem)
+
+- define reification up to Tom's states (in terms of collapse etc., as currently but go a bit further)
+
+- define the interpretation of the labels ([[a]](s)) - link it up to tom's relation
+
+- state the soundness theorem from the views framework (definition 11 in views paper), in HOL, in our context
+
+- add all the axioms, and put all the axioms in a unified definition
+
+- prove it
+
+- prove the relevant views framework properties for: reification, etc. (the things "looked at" above)
+
+- write the paper that says: this theorem implies good stuff as per views framework results
