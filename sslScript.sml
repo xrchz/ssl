@@ -2,6 +2,8 @@ open HolKernel bossLib boolLib boolSimps Parse lcsymtacs stringTheory intLib fin
 
 val _ = new_theory"ssl"
 
+val _ = export_rewrites["finite_map.FUNION_FEMPTY_1","finite_map.FUNION_FEMPTY_2"]
+
 val _ = tight_equality()
 
 val _ = type_abbrev("name",``:string``)
@@ -338,6 +340,15 @@ val root_compose_def = Define`
 
 val dfunion_def = Define`
   dfunion f1 f2 f3 ⇔ DISJOINT (FDOM f1) (FDOM f2) ∧ f3 = (f1 ⊌ f2)`
+
+val dfunion_FEMPTY = store_thm("dfunion_FEMPTY",
+  ``(dfunion f1 FEMPTY f2 ⇔ (f2 = f1)) ∧
+    (dfunion FEMPTY f1 f2 ⇔ (f2 = f1)) ∧
+    (dfunion f1 f2 FEMPTY ⇔ (f1 = FEMPTY ∧ f2 = FEMPTY))``,
+  rw[dfunion_def] >>
+  simp[CONV_RULE(STRIP_QUANT_CONV(LAND_CONV(SYM_CONV))) FUNION_EQ_FEMPTY] >>
+  rw[EQ_IMP_THM])
+val _ = export_rewrites["dfunion_FEMPTY"]
 
 val ifs_compose_def = Define`
   ifs_compose ifs1 ifs2 ifs3 ⇔
