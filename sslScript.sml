@@ -1,4 +1,4 @@
-open HolKernel bossLib boolLib boolSimps Parse lcsymtacs stringTheory intLib finite_mapTheory sortingTheory listTheory ParseExtras
+open HolKernel bossLib boolLib boolSimps Parse lcsymtacs stringTheory intLib finite_mapTheory sortingTheory listTheory ParseExtras quantHeuristicsLib
 
 val _ = new_theory"ssl"
 
@@ -1260,6 +1260,64 @@ val t17 = prove(
    Gian: These should be guaranteed by the interpretation of directory assertions.
 *)
 
+(* assertion sanity tests *)
+
+val ifs_root_def = Define`
+  ifs_root p = <| root := SOME p; address_env := FEMPTY; inode_env := FEMPTY |>`
+val ifs_root_root = store_thm("ifs_root_root",
+  ``(ifs_root p).root = SOME p``,
+  rw[ifs_root_def])
+val _ = export_rewrites["ifs_root_root"]
+val _ = store_thm("ifs_root_address_env",
+  ``(ifs_root p).address_env = FEMPTY``,
+  rw[ifs_root_def])
+val _ = export_rewrites["ifs_root_address_env"]
+val _ = store_thm("ifs_root_inode_env",
+  ``(ifs_root p).inode_env = FEMPTY``,
+  rw[ifs_root_def])
+val _ = export_rewrites["ifs_root_inode_env"]
+
+val ifs_address_env_def = Define`
+  ifs_address_env kv = <| root := NONE; address_env := FEMPTY |+ kv; inode_env := FEMPTY |>`
+val ifs_address_env_root = store_thm("ifs_address_env_root",
+  ``(ifs_address_env p).root = NONE``,
+  rw[ifs_address_env_def])
+val _ = export_rewrites["ifs_address_env_root"]
+val _ = store_thm("ifs_address_env_address_env",
+  ``(ifs_address_env p).address_env = FEMPTY |+ p``,
+  rw[ifs_address_env_def])
+val _ = export_rewrites["ifs_address_env_address_env"]
+val _ = store_thm("ifs_address_env_inode_env",
+  ``(ifs_address_env p).inode_env = FEMPTY``,
+  rw[ifs_address_env_def])
+val _ = export_rewrites["ifs_address_env_inode_env"]
+
+
+val t18 = prove(
+  ``ifs_address_env (a,((path,SOME a),[])) ∈
+     ∈ DirCell a (ProgExp(Lit(Path path))) T``,
+
+  rw[DirCell_def,FLOOKUP_UPDATE] >- (
+    rw[Once eval_exp_cases] >>
+    rw[Once eval_prog_exp_cases] ) >>
+  rw[wf_ifs_def,ifs_compose_def,root_compose_def] >>
+  qexists_tac`ifs_root [Address a]` >> simp[] >>
+  simp[dfunion_def] >>
+  quantHeuristicsLib.QUANT_INST_ss
+
+
+  TypeBase.constructors_of``:exp``
+  TypeBase.constructors_of``:value``
+  type_of``PathValue``
+  TypeBase.constructors_of``:prog_exp``
+  TypeBase.constructors_of``:prog_value``
+  type_of``Lit``
+  type_of``Path``
+
+
+val t19 = prove(
+  ``DirCell a p (Address a) = ∅``,
+  (* this should fail because you can't do the collapse *)
 
 
 (*
