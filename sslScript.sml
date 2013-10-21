@@ -350,23 +350,21 @@ val ifs_compose_def = Define`
 (*Gian: this should be a relation *)
 val (collapse_rules,collapse_ind,collapse_cases) = Hol_reln`
   (FLOOKUP ifs1.address_env x = SOME (px, dsx) ∧
-   FLOOKUP ifs2.address_env y = SOME (py, dsy) ∧
+   FLOOKUP ifs1.address_env y = SOME (py, dsy) ∧
    MEM y (forest_addresses dsx) ∧
    SOME (FST py) = path_concat (FST px) (FST q) ∧
    SND q = SND py ∧
-   resolve_path (FST q) (SND q) dsx = SOME (Address y) ∧
-   ifs2.address_env = ifs1.address_env |+ (x,(px,subst_forest y dsy dsx)) \\ y
+   resolve_path (FST q) (SND q) dsx = SOME (Address y)
    ⇒
-   collapse ifs1 ifs2) ∧
+   collapse ifs1 (ifs1 with address_env := ifs1.address_env |+ (x,(px,subst_forest y dsy dsx)) \\ y)) ∧
 
   (ifs1.root = SOME ds ∧
-   FLOOKUP ifs2.address_env y = SOME (py, dsy) ∧
+   FLOOKUP ifs1.address_env y = SOME (py, dsy) ∧
    MEM y (forest_addresses ds) ∧
-   resolve_path (FST py) (SND py) ds = SOME (Address y) ∧
-   ifs2.root = SOME (subst_forest y dsy ds) ∧
-   ifs2.address_env = ifs1.address_env \\ y
+   resolve_path (FST py) (SND py) ds = SOME (Address y)
    ⇒
-   collapse ifs1 ifs2)`
+   collapse ifs1 (ifs1 with <| root := SOME (subst_forest y dsy ds)
+                             ; address_env := ifs1.address_env \\ y |>))`
 
 val inodes_in_directory_def = Define`
   inodes_in_directory (FileLink n i) = { i } ∧
