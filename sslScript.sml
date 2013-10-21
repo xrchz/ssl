@@ -368,26 +368,28 @@ val (collapse_rules,collapse_ind,collapse_cases) = Hol_reln`
    ⇒
    collapse ifs1 ifs2)`
 
-val inodes_in_forest_def = xDefine "inodes_in_directory"`
+val inodes_in_directory_def = Define`
   inodes_in_directory (FileLink n i) = { i } ∧
   inodes_in_directory (Address _) = { } ∧
   inodes_in_directory (Directory _ ds) = inodes_in_forest ds ∧
   inodes_in_forest [] = { } ∧
-  inodes_in_forest h::t = (inodes_in_directory h) ∪ (inodes_in_forest t)`
+  inodes_in_forest (h::t) = (inodes_in_directory h) ∪ (inodes_in_forest t)`
 
 val complete_ifs_def = Define`
-  complete_ifs ifs = 
+  complete_ifs ifs ⇔
+    ∃ds.
     ifs.address_env = FEMPTY ∧
     ifs.root = SOME ds ∧
-    forest_address_set ds = { } ∧
+    forest_addresses ds = [] ∧
     wf_forest ds ∧
-    (inodes_in_forest ds) ⊆ (FDOMAIN ifs.inode_env)` (* let FDOMAIN f be the domain of f *)
+    (inodes_in_forest ds) ⊆ (FDOM ifs.inode_env)`
 
 val wf_ifs_def = Define`
-  wf_ifs ifs = (* GIAN: collapse^* is the reflexive transitive closure of collapse *)
-    ∃ifs1 ifs2. collapse^* (ifs_compose ifs ifs1) ifs2 ∧
-    complete_ifs ifs2`
-
+  wf_ifs ifs ⇔
+    ∃ifs1 ifs2 ifs3.
+      ifs_compose ifs ifs1 ifs2 ∧
+      collapse^* ifs2 ifs3 ∧
+      complete_ifs ifs3`
 
 val _ = type_abbrev("assertion",``:instrumented_state set``)
 
@@ -404,13 +406,13 @@ val DirCell_def = Define`
     FLOOKUP state.fs.address_env addr = SOME (ap,ds) ∧
     eval_exp path_exp {PathValue ap} ∧
     ds ∈ da ∧
-    wf_ifs fs}`
+    wf_ifs state.fs}`
 
 val RootCell_def = Define`
   RootCell da = { state |
     ∃ds. state.fs.root = SOME ds ∧
     ds ∈ da ∧
-    wf_ifs fs}`
+    wf_ifs state.fs}`
 
 val FileCell_def = Define`
   FileCell inode_exp bytes_exp env = { state |
