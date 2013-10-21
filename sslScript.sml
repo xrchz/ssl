@@ -564,6 +564,7 @@ val _ = overload_on("DirP",``λaddr path da. DirCell addr (ProgExp path) da``)
 val _ = overload_on(":>",``λname inode. DFileLink (ProgExp name) (ProgExp inode)``)
 val _ = add_infix(":>",425,NONASSOC)
 val _ = temp_overload_on("=",``λe1 e2. Exp (ProgExp (Equal e1 e2))``)
+val _ = bring_to_front_overload("=",{Name="=",Thy="min"})
 val _ = temp_overload_on("<>",``λe1 e2. Exp (ProgExp (Neg (Equal e1 e2)))``)
 val _ = Unicode.uoverload_on(Unicode.UChar.neq,``λe1 e2. Exp (ProgExp (Neg (Equal e1 e2)))``)
 
