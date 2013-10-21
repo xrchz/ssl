@@ -143,17 +143,24 @@ val _ = type_abbrev("forest",``:directory list``)
 (* well formedness of directory values *)
 
 (* list of names in a directory tree *)
-val directory_names_def = Define`
-  (directory_names (FileLink n _) = [n]) ∧
-  (directory_names (Directory n ds) = n::forest_names ds) ∧
-  (directory_names (Address _) = []) ∧
-  (forest_names [] = []) ∧
-  (forest_names (d::ds) = directory_names d ++ forest_names ds)`
-val _ = export_rewrites["directory_names_def"]
 
-(* sibling name uniqueness for an entire directory tree *)
-val _ = overload_on("wf_directory_names",``λd. ALL_DISTINCT (directory_names d)``)
-val _ = overload_on("wf_forest_names",``λds. ALL_DISTINCT (forest_names ds)``)
+val directory_name_def = Define`
+  (directory_name (FileLink n _) = SOME n) ∧
+  (directory_name (Directory n _) = SOME n) ∧
+  (directory_name (Address _) = NONE)`
+
+val wf_directory_names_def = tDefine"wf_directory_names"`
+  (wf_directory_names (FileLink n _) ⇔ T) ∧
+  (wf_directory_names (Directory n ds) ⇔
+    ALL_DISTINCT (FILTER IS_SOME (MAP directory_name ds)) ∧
+    EVERY wf_directory_names ds) ∧
+  (wf_directory_names (Address _) ⇔ T)`
+(WF_REL_TAC `measure directory_size` >>
+ gen_tac >> Induct >> simp[definition"directory_size_def"] >>
+ rw[] >> res_tac >> simp[])
+val _ = export_rewrites["wf_directory_names_def"]
+
+val _ = overload_on("wf_forest_names",``λds. EVERY wf_directory_names ds``)
 
 (* list of addresses in a directory tree *)
 val directory_addresses_def = Define`
@@ -903,14 +910,17 @@ val t4 = prove(``[FileLink name inode] ∈ T``, rw[DLift_def])
 
 (* directory does not satisfy file and vice versa *)
 val t5 = prove(
-  ``[Directory dn[FileLink fn x]] ∈
+  ``[Directory dn [FileLink fn x]] ∈
           (DDir (Name dn) (Name fn :> Lit (Inode x)))``,
   rw[DDirectory_def] >- (
     rw[Once eval_exp_cases] >>
-    rw[Once eval_prog_exp_cases] ) >>
-  rw[DFileLink_def] >>
-  rw[Once eval_exp_cases] >>
-  rw[Once eval_prog_exp_cases] )
+    rw[Once eval_prog_exp_cases] )
+  >- (
+    rw[DFileLink_def] >>
+    rw[Once eval_exp_cases] >>
+    rw[Once eval_prog_exp_cases] )
+  >- (
+    rw[wf_forest_def] ))
 
 val t6 = prove(
   ``[Directory dn [FileLink fn n]] ∉
