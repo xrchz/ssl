@@ -148,6 +148,7 @@ val directory_name_def = Define`
   (directory_name (FileLink n _) = SOME n) ∧
   (directory_name (Directory n _) = SOME n) ∧
   (directory_name (Address _) = NONE)`
+val _ = export_rewrites["directory_name_def"]
 
 val wf_directory_names_def = tDefine"wf_directory_names"`
   (wf_directory_names (FileLink n _) ⇔ T) ∧
@@ -368,7 +369,6 @@ val ifs_compose_def = Define`
 
 (* instrumented directory heaps well - formedness *)
 
-(*Gian: this should be a relation *)
 val (collapse_rules,collapse_ind,collapse_cases) = Hol_reln`
   (FLOOKUP ifs1.address_env x = SOME (px, dsx) ∧
    FLOOKUP ifs1.address_env y = SOME (py, dsy) ∧
@@ -939,6 +939,9 @@ val t8 = prove(
 
 (* directory contents with true *)
 val dir = ``[Directory "a" [Directory "b" []; Directory "c" [FileLink "d" 42; Directory "e" []; FileLink "g" 42]; Directory "d" [FileLink "f" 4242]]]``
+val wf_forest_dir = prove(``wf_forest ^dir``, rw[wf_forest_def])
+val _ = augment_srw_ss[rewrites[wf_forest_dir]]
+
 val t9 = prove(
   ``^dir ∈ (DDir (Name "a") T)``,
   rw[DDirectory_def] >>
@@ -961,12 +964,15 @@ val t12 = prove(
   srw_tac[DNF_ss][] >>
   simp[Once eval_exp_cases] >>
   simp[Once eval_prog_exp_cases] >>
-  qho_match_abbrev_tac`∃l2 ds. PERM (D ds::l2) (CONS (D []) Y)` >>
+  simp[wf_forest_def] >>
+  qho_match_abbrev_tac`∃l2 ds. (X l2 ds) ∧ PERM (D ds::l2) (CONS (D []) Y)` >>
   `D [] :: Y = [] ++ (D [] :: Y)` by simp[] >>
   pop_assum SUBST1_TAC >>
   qexists_tac`Y` >> qexists_tac`[]` >>
-  match_mp_tac CONS_PERM >>
-  simp[])
+  reverse conj_tac >- (
+    match_mp_tac CONS_PERM >>
+    simp[]) >>
+  simp[Abbr`X`,Abbr`Y`])
 
 (* + is commutative *)
 val t13 = prove(
