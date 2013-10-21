@@ -149,6 +149,7 @@ val directory_names_def = Define`
   (directory_names (Address _) = []) ∧
   (forest_names [] = []) ∧
   (forest_names (d::ds) = directory_names d ++ forest_names ds)`
+val _ = export_rewrites["directory_names_def"]
 
 (* sibling name uniqueness for an entire directory tree *)
 val _ = overload_on("wf_directory_names",``λd. ALL_DISTINCT (directory_names d)``)
@@ -161,6 +162,7 @@ val directory_addresses_def = Define`
   (directory_addresses (Address a) = [a]) ∧
   (forest_addresses [] = []) ∧
   (forest_addresses (d::ds) = directory_addresses d ++ forest_addresses ds)`
+val _ = export_rewrites["directory_addresses_def"]
 
 (* distinct addresses in a directory tree *)
 val _ = overload_on("wf_directory_addresses",``λd. ALL_DISTINCT (directory_addresses d)``)
@@ -337,6 +339,7 @@ val root_compose_def = Define`
   (root_compose NONE     (SOME y) x ⇔ (x = SOME y)) ∧
   (root_compose (SOME y) NONE     x ⇔ (x = SOME y)) ∧
   (root_compose (SOME _) (SOME _) _ ⇔ F)`
+val _ = export_rewrites["root_compose_def"]
 
 val dfunion_def = Define`
   dfunion f1 f2 f3 ⇔ DISJOINT (FDOM f1) (FDOM f2) ∧ f3 = (f1 ⊌ f2)`
