@@ -1392,7 +1392,7 @@ val reification_single_def = Define`
     complete_ifs ifs3 }`
 
 val reification_def = Define`
-  reification iss = FOLD (λs.λx. s ∪ (reification_single x)) { } iss`
+  reification iss = FOLDL (λs.λx. s ∪ (reification_single x)) { } iss`
     
 
 val _ = export_theory()
