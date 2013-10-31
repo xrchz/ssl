@@ -112,6 +112,7 @@ val contents_heap_def = type_abbrev("contents_heap",``:(inode_ref#contents) list
 val entrya_def = Hol_datatype `
 entrya = Dir of (name#entrya) list | File of inode_ref
 `;
+
 (* FIXME don't use fs as constant, since used later as var? *)
 
 val fs_def = Hol_datatype `

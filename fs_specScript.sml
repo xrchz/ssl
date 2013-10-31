@@ -838,6 +838,7 @@ val sub_def = Define `
 sub bs ofs len = SEG ofs (ofs+len) bs
 `;
 
+(* GIAN: Needs termination proof? *)
 (* FIXME original defn doesn't work in HOL if m=0, since n can't get lower *)
 val downto'_def = Define `
 downto' n m = (if (n=m) then [m] else (if n < m then [] else n::(downto' (n-1) m)))

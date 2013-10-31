@@ -17,6 +17,12 @@ val _ = type_abbrev("address", ``:num``)
 val _ = type_abbrev("var", ``:num``)
 val _ = type_abbrev("num", ``:num``)
 
+(*GIAN: distinguished variables *)
+(* errno; holds the error result of the most recently executed command *)
+val errno = ``4242``
+(* rvalue; holds the return value of the most recently executed command *)
+val rvalue = ``4243``
+
 val _ = Hol_datatype `path =
     EmptyPath
   | AbsPath of relpath
@@ -54,8 +60,16 @@ val _ = Hol_datatype `ftype =
 val _ = type_abbrev("bytes",``:char list``)
 val _ = type_abbrev("string",``:char list``)
 
+(* Gian: Tom has the same type. We need to move common types somewhere *)
+val _ = Hol_datatype `error = 
+  ENOENT
+  | ENOTDIR
+  | EISDIR
+  | EINVAL`
+
 val _ = Hol_datatype `prog_value =
-    Int of int
+    Int of int 
+  | Error of error
   | Bool of bool
   | Path of path
   | Bytes of bytes
@@ -548,8 +562,8 @@ val NameNotHere_def = Define`
 (* Commands *)
 val _ = Hol_datatype `command =
     (* First var is the one storing the return value after execution *)
-    Mkdir of var => var
-  | Rename of var => var => var`
+    Mkdir of var
+  | Rename of var => var`
 
 (* Hoare triples *)
 val _ = type_abbrev("hoare_triple", ``:assertion # command # assertion``)
@@ -565,6 +579,12 @@ val _ = overload_on(":>",``λname inode. DFileLink (ProgExp name) (ProgExp inode
 val _ = add_infix(":>",425,NONASSOC)
 val _ = temp_overload_on("=",``λe1 e2. Exp (ProgExp (Equal e1 e2))``)
 val _ = bring_to_front_overload("=",{Name="=",Thy="min"})
+(* Gian: I get an error here: 
+Error-Can't unify string with string * {Thy: string, Name: string} (Incompatible types) Found near bring_to_front_overload
+( "=", {Name = "=", Thy = ...}) 
+I see bring_to_front_overload: string -> {Thy: string, Name: string} -> unit 
+Do we have the same HOL versions? *)
+val _ = bring_to_front_overload "=" {Name="=",Thy="min"}
 val _ = temp_overload_on("<>",``λe1 e2. Exp (ProgExp (Neg (Equal e1 e2)))``)
 val _ = Unicode.uoverload_on(Unicode.UChar.neq,``λe1 e2. Exp (ProgExp (Neg (Equal e1 e2)))``)
 
@@ -1362,11 +1382,14 @@ also, take (evaluate vr in s1) and (evaluate errno in s1)
 *)
 
 val reification_single_def = Define`
-  reification_single is = { state |
-    ∃ ifs. collapse^* (ifs_compose is.fs ifs) state.fs ∧
-    complete_ifs state.fs ∧
+  reification_single (is: instrumented_state) = { state |
+    ∃ ifs1 ifs2 ifs3.
+    state.fs = ifs3 ∧
     state.heap = is.heap ∧
-    state.env = is.env }`
+    state.env = is.env ∧
+    ifs_compose is.fs ifs1 ifs2 ∧
+    collapse^* ifs2 ifs3 ∧
+    complete_ifs ifs3 }`
 
 val reification_def = Define`
   reification iss = FOLD (λs.λx. s ∪ (reification_single x)) { } iss`

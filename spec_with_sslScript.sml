@@ -104,6 +104,99 @@ fs_lbl_of ops s0 cwd lbl = (
     | WRITE (p,ofs,bs,len) => (FS_WRITE(pp p,ofs,bs,len)))
 `;
 
+val dummy_perms_def = Define `
+dummy_perms = (ARB:file_perm)
+`;
+
+(* GIAN: This needs termination proof *)
+val string_of_path_def = tDefine`
+  (string_of_path EmptyPath = "") ∧
+  (string_of_path (RelPath name rpath) = STRCAT name (string_of_list rpath)) ∧
+  (string_of_path (AbsPath rpath) = STRCAT "/" (string_of_list rpath)) ∧
+  (string_of_list names = string_of_list_fold "" names) ∧
+  (string_of_list_fold acc [] = acc) ∧
+  (string_of_list_fold acc (n::ns) = string_of_list_fold (STRCAT (STRCAT acc "/") n) ns)`
+
+(* GIAN: This is dummy so that I can attempt typechecking its dependencies *)
+val string_of_path_dummy_def = Define`string_of_path (p: path) = (ARB: string)`
+
+(* GIAN: relation mapping ssl directory to entrya *)
+val entrya_of_directory_def = Hol_reln`
+  (* GIAN: Could I just say?: entry_of_directory (name, (Flie inode)) (FileLink (name, inode)) ⇔ T *)
+  (name = name' ∧
+   inode = inode'
+   ⇒ entrya_of_directory (name, (File (Inode_ref inode))) (FileLink name' inode')) ∧
+  
+  (name = name' ∧
+   entrya_of_directory_forests es ds
+   ⇒ entrya_of_directory (name, (Dir es)) (Directory name' ds)) ∧
+
+  (entrya_of_directory e d ∧
+   entrya_of_directory_forests es ds
+   ⇒ entrya_of_directory_forests (e::es) (d::ds))`
+
+val iref_inode_match_def = Define`
+  iref_inode_match (cs: contents_heap) ih (Inode_ref i) = 
+    ∃ bs cstr. 
+    fmap_lookup cs (Inode_ref i) = SOME cstr ∧
+    FLOOKUP ih i = SOME bs ∧
+    IMPLODE cstr = bs`
+
+(* GIAN: Map the inode heap to inode_ref contents *)
+val file_list_of_inode_heap_def = Hol_reln`
+  (EVERY (iref_inode_match cs ih) (fmap_dom cs)
+   ⇒ file_list_of_inode_heap cs ih)`
+
+(* GIAN: Map commands to labels *)
+val label_of_command_def = Define`
+  (label_of_command (s: instrumented_state) (Mkdir pvar) = { MKDIR (pstr, dummy_perms) | pstr, dummy_perms |
+     ∃ pval.
+     FLOOKUP s.env pvar = SOME (Path pval) ∧
+     string_of_path pval = pstr }) ∧
+  
+  (label_of_command s (Rename oldpvar newpvar) = { RENAME (spath, dpath) |
+    ∃ oldpval newpval.
+    FLOOKUP s.env oldpvar = SOME (Path oldpval) ∧
+    FLOOKUP s.env newpvar = SOME (Path newpval) ∧
+    string_of_path oldpval = spath ∧
+    string_of_path newpval = dpath })`
+    
+val retval_to_progval_def = Define`retval_to_progval (v: ret_value) = (ARB: prog_value)`
+
+(* GIAN: Map a spec state transition to an ssl command interpretation *)
+val fs_lbl_trans_embed_def = Define`
+  fs_lbl_trans_embed (s, cmd) = { state |
+    ∃ lbl lbl' es ds ds' cs ops fs fs' ev err.
+    ops = dirtree$ops1 ∧
+    (* the input state must not have any instrumentation here *)
+    complete_ifs s.fs ∧
+    (* embed instrumented state components to dir_treeScript components *)
+    s.fs.root = SOME ds ∧
+    entrya_of_directory (Dir es) ds ∧
+    file_list_of_inode_heap cs s.fs.inode_env ∧
+    fs = <| es1 := es; cs1 := cs |> ∧
+    (* map command to label *)
+    label_of_command s cmd = lbl ∧
+    lbl' = fs_lbl_of ops fs (dest_Some (ops.get_root1 fs)) lbl ∧
+    (* transition on the label *)
+    finset_mem (fs', ev) (fs_trans ops fs lbl') ∧
+    (* return value / error on the variable store *)
+    (case ev of
+       INL e => 
+         FLOOKUP state.env errno = SOME (Error err) ∧ 
+         err = e ∧ (* GIAN; currently these are not the same type *)
+         FLOOKUP state.env rvalue = SOME (Int -1)
+      | INR None1 => (* No value result produced; in this case the rvalue will be 0 *)
+         FLOOKUP state.evn rvalue = SOME (Int 0)
+      | INR (Some1 v) => (* There is some value result *)
+         FLOOKUP state.env rvalue = SOME (value_to_prog_value v)) ∧
+    (* directories and files *)
+    state.fs.root = SOME ds' ∧
+    entrya_of_directory fs'.es1 ds' ∧
+    file_list_of_inode_hep fs'.cs1 state.fs.inode_env ∧
+    (* let's just enforce this as well (just in case) *)
+    complete_ifs state.fs }`
+
 
 (* FIXME overloading on equals at end of sslTheory causes many problems! *) 
 
@@ -117,11 +210,6 @@ string_of_path (p:path) = (ARB:string) (* FIXME *)
 
 val string_of_prog_exp_def = Define `
 string_of_prog_exp s (p:var) = (ARB:string) (* FIXME *)
-`;
-
-
-val dummy_perms_def = Define `
-dummy_perms = (ARB:file_perm)
 `;
 
 val assemble_def = Define `
