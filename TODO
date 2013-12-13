@@ -1,3 +1,7 @@
+- get an informal, latex'ed set of axioms, complete and stable (G)
+
+- reconcile the axioms with Tom's operational spec, before porting the axioms from latex to hol (G,R,T)
+
 - fix the return value for commands 
   - this should make reification possible, and also
   - this should make the labels the same datatype
